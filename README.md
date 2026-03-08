@@ -52,6 +52,110 @@
 
 ---
 
+## 打包为 EXE（可选）
+
+如果你想自己打包为可执行文件：
+
+### 方法一：一键打包（推荐）
+
+1. 双击运行 `build.bat`
+2. 等待打包完成
+3. 打包好的 `FileOpener.exe` 在 `dist` 文件夹中
+
+### 方法二：手动打包
+
+```bash
+# 安装 PyInstaller
+pip install pyinstaller
+
+# 执行打包
+pyinstaller FileOpener.spec
+
+# 输出文件在 dist/FileOpener.exe
+```
+
+---
+
+## 项目结构
+
+```
+autoopen/
+├── main.py                 # 主程序入口
+├── build.bat              # 一键打包脚本
+├── FileOpener.spec        # PyInstaller配置
+├── icon.ico               # 程序图标
+├── file_groups.json       # 数据文件（自动生成）
+├── README.md              # 本文件
+│
+├── src/                   # 源代码目录
+│   ├── __init__.py
+│   ├── defines.py         # 配置文件（字体、颜色、常量）
+│   └── utils.py           # 工具函数
+│   │
+│   ├── handlers/          # 业务处理模块
+│   │   ├── __init__.py
+│   │   ├── file_handler.py    # 文件操作
+│   │   ├── drag_drop.py       # 拖拽功能
+│   │   └── group_manager.py   # 文件组管理
+│   │
+│   └── ui/                # UI组件模块
+│       ├── __init__.py
+│       ├── dialogs.py         # 对话框
+│       └── ui_components.py   # UI组件
+│
+└── dist/                  # 打包输出目录（自动生成）
+    └── FileOpener.exe     # 可执行文件
+```
+
+---
+
+## 自定义配置
+
+如需修改界面样式，请编辑 `src/defines.py`：
+
+```python
+# 修改窗口大小
+WINDOW_WIDTH = 1600
+WINDOW_HEIGHT = 1000
+
+# 修改主题颜色
+THEME_COLOR = "blue"  # blue, green, dark-blue
+
+# 修改按钮颜色
+COLOR_PRIMARY = "#3498db"      # 蓝色
+COLOR_SUCCESS = "#27ae60"      # 绿色
+COLOR_DANGER = "#e74c3c"       # 红色
+
+# 修改字体大小
+FONT_SIZE_TITLE = 22
+FONT_SIZE_NORMAL = 13
+```
+
+---
+
+## 开发说明
+
+### 运行程序
+
+```bash
+python main.py
+```
+
+### 目录说明
+
+- `src/` - 所有源代码
+  - `handlers/` - 业务逻辑（文件操作、拖拽、文件组管理）
+  - `ui/` - 界面组件（对话框、按钮组件）
+- `main.py` - 入口文件，负责整合所有模块
+
+### 添加新功能
+
+1. 业务逻辑 → 添加到 `src/handlers/`
+2. UI组件 → 添加到 `src/ui/`
+3. 在 `main.py` 中导入并使用
+
+---
+
 ## 数据说明
 
 - 文件组保存在软件目录的 `file_groups.json` 中
