@@ -6,7 +6,9 @@ utils.py
 """
 
 from typing import Literal
+import os
 import customtkinter as ctk
+from PIL import Image
 from .defines import (
     FONT_FAMILY,
     FILE_ICONS,
@@ -23,7 +25,11 @@ from .defines import (
     FONT_SIZE_DIALOG_TITLE,
     FONT_SIZE_ICON,
     FONT_SIZE_TINY,
+    get_app_dir,
 )
+
+
+_UI_ICON_CACHE = {}
 
 
 def get_file_icon(file_ext):
@@ -51,6 +57,34 @@ def create_ctk_font(size, weight: Literal["normal", "bold"] = "normal"):
         ctk.CTkFont: 配置好的字体对象
     """
     return ctk.CTkFont(family=FONT_FAMILY, size=size, weight=weight)
+
+
+def get_ui_icon(name, size=18):
+    """Load and cache local UI icons as CTkImage."""
+    cache_key = (name, size)
+    if cache_key in _UI_ICON_CACHE:
+        return _UI_ICON_CACHE[cache_key]
+
+    app_dir = get_app_dir()
+    project_root = os.path.dirname(app_dir)
+    candidate_paths = [
+        os.path.join(app_dir, "assets", "icons", "fluent", f"{name}.png"),
+        os.path.join(project_root, "src", "assets", "icons", "fluent", f"{name}.png"),
+        os.path.join(project_root, "assets", "icons", "fluent", f"{name}.png"),
+        os.path.join(os.getcwd(), "src", "assets", "icons", "fluent", f"{name}.png"),
+        os.path.join(os.getcwd(), "assets", "icons", "fluent", f"{name}.png"),
+    ]
+
+    icon_path = next((path for path in candidate_paths if os.path.exists(path)), None)
+    if icon_path is None:
+        return None
+
+    with Image.open(icon_path) as img:
+        icon_image = img.copy()
+
+    ctk_icon = ctk.CTkImage(light_image=icon_image, dark_image=icon_image, size=(size, size))
+    _UI_ICON_CACHE[cache_key] = ctk_icon
+    return ctk_icon
 
 
 # 预定义的字体对象（常用字体）

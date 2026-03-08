@@ -38,7 +38,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('icon.ico', '.')],
+    datas=[('icon.ico', '.'), ('src/assets', 'assets')],
     hiddenimports=[
         'src',
         'src.defines',

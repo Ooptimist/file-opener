@@ -5,6 +5,7 @@ UI组件模块
 提供各种自定义UI组件的创建和管理
 """
 
+import os
 import customtkinter as ctk
 from ..defines import (
     BUTTON_HEIGHT_LARGE,
@@ -22,12 +23,26 @@ from ..defines import (
     COLOR_DANGER_HOVER,
     COLOR_SECONDARY,
     COLOR_SECONDARY_HOVER,
+    COLOR_BG_CARD,
+    COLOR_BG_CARD_HOVER,
+    COLOR_BG_FILE_LIST,
+    COLOR_BG_FILE_ITEM,
+    COLOR_BG_FILE_ITEM_HOVER,
+    COLOR_BORDER,
+    COLOR_BORDER_SOFT,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_TEXT_MUTED,
+    TEXT_EXPAND_ICON,
+    TEXT_COLLAPSE_ICON,
+    TEXT_CHECK_EXISTS,
+    TEXT_CHECK_MISSING,
     TEXT_SELECT_FILES,
     TEXT_SAVE_GROUP,
     TEXT_REMOVE,
     TEXT_OPEN,
 )
-from ..utils import Fonts
+from ..utils import Fonts, get_ui_icon
 
 
 def create_primary_button(parent, text, command):
@@ -149,9 +164,11 @@ def create_expand_button(parent, command):
     Returns:
         ctk.CTkButton: 创建的按钮
     """
+    icon = get_ui_icon("expand", 14)
     return ctk.CTkButton(
         parent,
-        text="▶",
+        text="" if icon else TEXT_EXPAND_ICON,
+        image=icon,
         width=32,
         height=32,
         corner_radius=CORNER_RADIUS_SMALL,
@@ -180,23 +197,66 @@ class FileCheckbox:
         """
         self.file_path = file_path
         self.file_index = 0  # 需要在创建后设置
-        
-        import os
+
         file_name = os.path.basename(file_path)
-        
+
         # 创建行容器
-        self.row = ctk.CTkFrame(parent, fg_color="transparent")
-        self.row.pack(fill="x", pady=2)
-        
+        self.row = ctk.CTkFrame(
+            parent,
+            fg_color=COLOR_BG_FILE_ITEM,
+            corner_radius=CORNER_RADIUS_SMALL,
+            border_width=1,
+            border_color=COLOR_BORDER_SOFT,
+        )
+        self.row.pack(fill="x", pady=3)
+
         # 创建复选框
         self.checkbox = ctk.CTkCheckBox(
             self.row,
             text=f"{file_icon} {file_name}",
             font=Fonts.normal(),
+            text_color=COLOR_TEXT_PRIMARY,
+            hover_color=COLOR_PRIMARY_HOVER,
+            fg_color=COLOR_PRIMARY,
+            border_color=COLOR_BORDER_SOFT,
             checkbox_width=20,
             checkbox_height=20
         )
-        self.checkbox.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.checkbox.pack(side="left", fill="x", expand=True, padx=10, pady=7)
+
+        self.row.bind("<Enter>", self._on_hover)
+        self.row.bind("<Leave>", self._on_leave)
+        self.row.bind("<Button-1>", self._on_row_click)
+
+        bg_canvas = getattr(self.checkbox, "_bg_canvas", None)
+        box_canvas = getattr(self.checkbox, "_canvas", None)
+        text_label = getattr(self.checkbox, "_text_label", None)
+
+        if bg_canvas is not None:
+            bg_canvas.bind("<Enter>", self._on_hover, add="+")
+            bg_canvas.bind("<Leave>", self._on_leave, add="+")
+            bg_canvas.bind("<Button-1>", self._on_row_click, add="+")
+
+        if box_canvas is not None:
+            box_canvas.bind("<Enter>", self._on_hover, add="+")
+            box_canvas.bind("<Leave>", self._on_leave, add="+")
+
+        if text_label is not None:
+            text_label.bind("<Enter>", self._on_hover, add="+")
+            text_label.bind("<Leave>", self._on_leave, add="+")
+
+    def _on_hover(self, _event):
+        self.row.configure(fg_color=COLOR_BG_FILE_ITEM_HOVER)
+
+    def _on_leave(self, _event):
+        self.row.configure(fg_color=COLOR_BG_FILE_ITEM)
+
+    def _on_row_click(self, _event):
+        """Toggle checkbox when clicking anywhere in row."""
+        if self.checkbox.get():
+            self.checkbox.deselect()
+        else:
+            self.checkbox.select()
     
     def is_checked(self):
         """
@@ -240,15 +300,28 @@ class GroupWidget:
         self.files_frame = None
         self.count_label = None
         self.expand_btn = None
+        self.expand_icon_img = get_ui_icon("expand", 14)
+        self.collapse_icon_img = get_ui_icon("collapse", 14)
+        self.folder_icon_img = get_ui_icon("folder", 16)
+        self.open_icon_img = get_ui_icon("open", 14)
+        self.edit_icon_img = get_ui_icon("edit", 14)
+        self.delete_icon_img = get_ui_icon("remove", 14)
         
         # 创建主框架
-        self.frame = ctk.CTkFrame(parent, corner_radius=CORNER_RADIUS_NORMAL, fg_color="#2b2b2b")
+        self.frame = ctk.CTkFrame(
+            parent,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_BG_CARD,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         self.frame.grid_columnconfigure(1, weight=1)  # 组名列可拉伸
         
         # 展开/折叠按钮
         self.expand_btn = ctk.CTkButton(
             self.frame,
-            text="▶",
+            text="" if self.expand_icon_img else TEXT_EXPAND_ICON,
+            image=self.expand_icon_img,
             width=32,
             height=32,
             corner_radius=CORNER_RADIUS_SMALL,
@@ -262,8 +335,11 @@ class GroupWidget:
         # 组名标签
         name_label = ctk.CTkLabel(
             self.frame,
-            text=f"📁 {group_name}",
+            text=group_name,
+            image=self.folder_icon_img,
+            compound="left",
             font=Fonts.group_name(),
+            text_color=COLOR_TEXT_PRIMARY,
             anchor="w"
         )
         name_label.grid(row=0, column=1, sticky="w", padx=(0, 10))
@@ -273,7 +349,7 @@ class GroupWidget:
             self.frame,
             text=f"{valid_count}/{total_count}",
             font=Fonts.group_count(),
-            text_color="gray"
+            text_color=COLOR_TEXT_MUTED
         )
         self.count_label.grid(row=0, column=2, padx=10)
         
@@ -281,6 +357,8 @@ class GroupWidget:
         open_btn = ctk.CTkButton(
             self.frame,
             text="打开",
+            image=self.open_icon_img,
+            compound="left",
             height=BUTTON_HEIGHT_ICON,
             width=BUTTON_WIDTH_ICON,
             corner_radius=CORNER_RADIUS_SMALL,
@@ -295,11 +373,13 @@ class GroupWidget:
         edit_btn = ctk.CTkButton(
             self.frame,
             text="编辑",
+            image=self.edit_icon_img,
+            compound="left",
             height=BUTTON_HEIGHT_ICON,
             width=BUTTON_WIDTH_ICON,
             corner_radius=CORNER_RADIUS_SMALL,
-            fg_color="#34495e",
-            hover_color="#2c3e50",
+            fg_color=COLOR_SECONDARY,
+            hover_color=COLOR_SECONDARY_HOVER,
             font=Fonts.small(),
             command=lambda: on_edit(group_name)
         )
@@ -309,6 +389,8 @@ class GroupWidget:
         delete_btn = ctk.CTkButton(
             self.frame,
             text="删除",
+            image=self.delete_icon_img,
+            compound="left",
             height=BUTTON_HEIGHT_ICON,
             width=BUTTON_WIDTH_ICON,
             corner_radius=CORNER_RADIUS_SMALL,
@@ -338,8 +420,9 @@ class GroupWidget:
             expanded (bool): 是否展开
         """
         if self.expand_btn:
-            icon = "▼" if expanded else "▶"
-            self.expand_btn.configure(text=icon)
+            icon_img = self.collapse_icon_img if expanded else self.expand_icon_img
+            fallback_text = TEXT_COLLAPSE_ICON if expanded else TEXT_EXPAND_ICON
+            self.expand_btn.configure(image=icon_img, text="" if icon_img else fallback_text)
     
     def create_files_frame(self, files):
         """
@@ -351,13 +434,16 @@ class GroupWidget:
         Returns:
             ctk.CTkFrame: 文件列表框架
         """
-        import os
-        from ..defines import TEXT_CHECK_EXISTS, TEXT_CHECK_MISSING
-        
         if self.files_frame:
             self.files_frame.destroy()
-        
-        self.files_frame = ctk.CTkFrame(self.frame, fg_color="#1e1e1e", corner_radius=4)
+
+        self.files_frame = ctk.CTkFrame(
+            self.frame,
+            fg_color=COLOR_BG_FILE_LIST,
+            corner_radius=CORNER_RADIUS_SMALL,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         
         for file_path in files:
             file_name = os.path.basename(file_path)
@@ -366,6 +452,7 @@ class GroupWidget:
                 self.files_frame,
                 text=f"{exists_icon} {file_name}",
                 font=Fonts.group_file(),
+                text_color=COLOR_TEXT_SECONDARY,
                 anchor="w"
             )
             file_label.pack(fill="x", padx=8, pady=2)

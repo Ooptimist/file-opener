@@ -15,3 +15,6 @@ Thumbs.db
 
 # Windows specific
 nul
+
+# Local agent rule file
+AGENT.md

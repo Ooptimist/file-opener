@@ -28,6 +28,7 @@ from src.defines import (
     TEXT_OPEN,
     TEXT_MY_GROUPS,
     TEXT_CURRENT_FILES,
+    TEXT_NO_FILES,
     TEXT_NO_GROUPS,
     PAD_X_LARGE,
     PAD_X_NORMAL,
@@ -36,12 +37,27 @@ from src.defines import (
     PAD_X_SMALL,
     PAD_Y_SMALL,
     CORNER_RADIUS_LARGE,
+    CORNER_RADIUS_NORMAL,
+    COLOR_BG_APP,
+    COLOR_BG_PANEL,
+    COLOR_BG_FILE_LIST,
+    COLOR_PRIMARY,
+    COLOR_PRIMARY_HOVER,
+    COLOR_SUCCESS,
+    COLOR_SUCCESS_HOVER,
+    COLOR_DANGER,
+    COLOR_DANGER_HOVER,
+    COLOR_SECONDARY,
+    COLOR_SECONDARY_HOVER,
+    COLOR_BORDER,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_MUTED,
     get_icon_path,
     APP_ID,
 )
 
 # 导入工具模块
-from src.utils import Fonts, get_file_icon
+from src.utils import Fonts, get_file_icon, get_ui_icon
 
 # 导入功能模块
 from src.handlers.file_handler import (
@@ -73,6 +89,9 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         # 初始化数据
         self.selected_files = []
         self.file_checkboxes = []
+        self.file_empty_tip = None
+        self.file_scrollbar_grid_opts = None
+        self.file_scrollbar_visible = False
         self.expanded_groups = set()
         self.group_widgets = {}
         
@@ -80,6 +99,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         self.group_manager = GroupManager()
         
         # 构建UI
+        self._load_icons()
         self._build_ui()
         
         # 初始化拖拽功能（仅文件列表区域生效）
@@ -102,6 +122,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resizable(WINDOW_RESIZABLE, WINDOW_RESIZABLE)
+        self.configure(fg_color=COLOR_BG_APP)
         
         # 配置网格布局
         self.grid_columnconfigure(0, weight=1)
@@ -145,24 +166,66 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         
         # 更新文件组显示
         self._update_groups_panel()
+        self._update_file_list()
+
+    def _load_icons(self):
+        """Load shared icons for toolbar buttons."""
+        self.ui_icons = {
+            "select_files": get_ui_icon("select-files", 18),
+            "save_group": get_ui_icon("save-group", 18),
+            "remove": get_ui_icon("remove", 16),
+            "open": get_ui_icon("open", 16),
+        }
     
     def _create_title(self):
         """
         创建窗口标题
         """
-        title_label = ctk.CTkLabel(
+        title_frame = ctk.CTkFrame(
             self,
-            text=TEXT_TITLE,
-            font=Fonts.title()
+            fg_color=COLOR_BG_PANEL,
+            corner_radius=CORNER_RADIUS_LARGE,
+            border_width=1,
+            border_color=COLOR_BORDER,
         )
-        title_label.grid(row=0, column=0, columnspan=2, padx=PAD_X_LARGE, pady=(PAD_Y_LARGE, PAD_Y_NORMAL))
+        title_frame.grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=PAD_X_LARGE,
+            pady=(PAD_Y_LARGE, PAD_Y_NORMAL),
+            sticky="ew",
+        )
+        title_frame.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            title_frame,
+            text=TEXT_TITLE,
+            font=Fonts.title(),
+            text_color=COLOR_TEXT_PRIMARY,
+        )
+        title_label.grid(row=0, column=0, padx=PAD_X_NORMAL, pady=(PAD_Y_SMALL, 4), sticky="w")
+
+        subtitle_label = ctk.CTkLabel(
+            title_frame,
+            text="高效整理常用文件，一键批量打开",
+            font=Fonts.small(),
+            text_color=COLOR_TEXT_MUTED,
+        )
+        subtitle_label.grid(row=1, column=0, padx=PAD_X_NORMAL, pady=(0, PAD_Y_SMALL), sticky="w")
     
     def _create_left_panel(self):
         """
         创建左侧面板（文件选择和列表区域）
         """
         # 主框架
-        left_frame = ctk.CTkFrame(self, corner_radius=CORNER_RADIUS_LARGE)
+        left_frame = ctk.CTkFrame(
+            self,
+            corner_radius=CORNER_RADIUS_LARGE,
+            fg_color=COLOR_BG_PANEL,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         left_frame.grid(row=1, column=0, padx=(PAD_X_LARGE, PAD_X_SMALL), pady=PAD_Y_SMALL, sticky="nsew")
         left_frame.grid_columnconfigure(0, weight=1)
         left_frame.grid_rowconfigure(2, weight=1)
@@ -192,9 +255,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         add_file_btn = ctk.CTkButton(
             btn_frame,
             text=TEXT_SELECT_FILES,
+            image=self.ui_icons.get("select_files"),
+            compound="left",
             font=Fonts.normal_bold(),
             height=40,
-            corner_radius=8,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_PRIMARY,
+            hover_color=COLOR_PRIMARY_HOVER,
             command=self._add_files
         )
         add_file_btn.grid(row=0, column=0, padx=(0, 6), sticky="ew")
@@ -203,11 +270,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         save_group_btn = ctk.CTkButton(
             btn_frame,
             text=TEXT_SAVE_GROUP,
+            image=self.ui_icons.get("save_group"),
+            compound="left",
             font=Fonts.normal_bold(),
             height=40,
-            corner_radius=8,
-            fg_color="#3498db",
-            hover_color="#2980b9",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SECONDARY,
+            hover_color=COLOR_SECONDARY_HOVER,
             command=self._save_group
         )
         save_group_btn.grid(row=0, column=1, padx=(6, 0), sticky="ew")
@@ -219,17 +288,51 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         Args:
             parent: 父容器
         """
-        list_frame = ctk.CTkFrame(parent, corner_radius=8)
+        list_frame = ctk.CTkFrame(
+            parent,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_BG_PANEL,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         list_frame.grid(row=2, column=0, padx=PAD_X_NORMAL, pady=PAD_Y_SMALL, sticky="nsew")
         list_frame.grid_columnconfigure(0, weight=1)
         self.file_list_container = list_frame
-        
+
+        self.file_stats_label = ctk.CTkLabel(
+            list_frame,
+            text="0 个文件",
+            font=Fonts.small(),
+            text_color=COLOR_TEXT_MUTED,
+            anchor="w",
+        )
+        self.file_stats_label.pack(fill="x", padx=10, pady=(8, 0))
+
         self.file_listbox = ctk.CTkScrollableFrame(
             list_frame,
             label_text=TEXT_CURRENT_FILES,
-            label_font=Fonts.header()
+            label_font=Fonts.header(),
+            fg_color=COLOR_BG_FILE_LIST,
+            label_fg_color=COLOR_BG_FILE_LIST,
+            label_text_color=COLOR_TEXT_PRIMARY,
         )
         self.file_listbox.pack(fill="both", expand=True, padx=8, pady=8)
+        self.file_listbox.bind("<Configure>", lambda _e: self._update_file_list_scrollbar_visibility())
+
+        canvas = getattr(self.file_listbox, "_parent_canvas", None)
+        scrollbar = getattr(self.file_listbox, "_scrollbar", None)
+        if scrollbar is not None:
+            self.file_scrollbar_grid_opts = dict(scrollbar.grid_info())
+        if canvas is not None:
+            canvas.bind("<Configure>", lambda _e: self._on_file_list_canvas_configure())
+
+        self.file_empty_tip = ctk.CTkLabel(
+            list_frame,
+            text=TEXT_NO_FILES,
+            font=Fonts.normal(),
+            text_color=COLOR_TEXT_MUTED,
+            justify="center",
+        )
     
     def _create_left_actions(self, parent):
         """
@@ -246,11 +349,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         remove_btn = ctk.CTkButton(
             button_frame,
             text=TEXT_REMOVE,
+            image=self.ui_icons.get("remove"),
+            compound="left",
             font=Fonts.small(),
             height=38,
-            corner_radius=8,
-            fg_color="#e74c3c",
-            hover_color="#c0392b",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_DANGER,
+            hover_color=COLOR_DANGER_HOVER,
             command=self._remove_selected
         )
         remove_btn.grid(row=0, column=0, padx=(0, 6))
@@ -259,11 +364,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         open_btn = ctk.CTkButton(
             button_frame,
             text=TEXT_OPEN,
+            image=self.ui_icons.get("open"),
+            compound="left",
             font=Fonts.small(),
             height=38,
-            corner_radius=8,
-            fg_color="#27ae60",
-            hover_color="#1e8449",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SUCCESS,
+            hover_color=COLOR_SUCCESS_HOVER,
             command=self._open_files
         )
         open_btn.grid(row=0, column=1, padx=(6, 0))
@@ -273,7 +380,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         创建右侧面板（文件组列表区域）
         """
         # 主框架
-        right_frame = ctk.CTkFrame(self, corner_radius=CORNER_RADIUS_LARGE)
+        right_frame = ctk.CTkFrame(
+            self,
+            corner_radius=CORNER_RADIUS_LARGE,
+            fg_color=COLOR_BG_PANEL,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         right_frame.grid(row=1, column=1, padx=(PAD_X_SMALL, PAD_X_LARGE), pady=PAD_Y_SMALL, sticky="nsew")
         right_frame.grid_columnconfigure(0, weight=1)
         right_frame.grid_rowconfigure(1, weight=1)
@@ -282,12 +395,13 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         groups_title = ctk.CTkLabel(
             right_frame,
             text=TEXT_MY_GROUPS,
-            font=Fonts.group_title()
+            font=Fonts.group_title(),
+            text_color=COLOR_TEXT_PRIMARY,
         )
         groups_title.grid(row=0, column=0, padx=PAD_X_LARGE, pady=(PAD_Y_LARGE, PAD_Y_NORMAL))
         
         # 文件组列表容器
-        self.groups_container = ctk.CTkScrollableFrame(right_frame)
+        self.groups_container = ctk.CTkScrollableFrame(right_frame, fg_color=COLOR_BG_FILE_LIST)
         self.groups_container.grid(row=1, column=0, padx=PAD_X_NORMAL, pady=(0, PAD_Y_NORMAL), sticky="nsew")
         self.groups_container.grid_columnconfigure(0, weight=1)
     
@@ -341,6 +455,22 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         for checkbox in self.file_checkboxes:
             checkbox.destroy()
         self.file_checkboxes = []
+
+        if not self.selected_files:
+            self.file_listbox.pack_forget()
+            if self.file_empty_tip is not None:
+                self.file_empty_tip.pack(fill="both", expand=True, padx=8, pady=8)
+            scrollbar = getattr(self.file_listbox, "_scrollbar", None)
+            if scrollbar is not None:
+                scrollbar.grid_remove()
+            self.file_scrollbar_visible = False
+            self.file_stats_label.configure(text="已选择 0 个文件")
+            return
+
+        if self.file_empty_tip is not None:
+            self.file_empty_tip.pack_forget()
+        self.file_listbox.pack(fill="both", expand=True, padx=8, pady=8)
+        self._on_file_list_canvas_configure()
         
         # 创建新的复选框
         for idx, file_path in enumerate(self.selected_files):
@@ -351,6 +481,47 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
             checkbox = FileCheckbox(self.file_listbox, file_path, icon)
             checkbox.file_index = idx
             self.file_checkboxes.append(checkbox)
+
+        file_count = len(self.selected_files)
+        self.file_stats_label.configure(text=f"已选择 {file_count} 个文件")
+        self._update_file_list_scrollbar_visibility()
+
+    def _update_file_list_scrollbar_visibility(self):
+        """Show file-list scrollbar only when content overflows."""
+        if not self.selected_files:
+            return
+
+        canvas = getattr(self.file_listbox, "_parent_canvas", None)
+        scrollbar = getattr(self.file_listbox, "_scrollbar", None)
+        if canvas is None or scrollbar is None:
+            return
+
+        self.file_listbox.update_idletasks()
+        bbox = canvas.bbox("all")
+        if bbox is None:
+            has_overflow = False
+        else:
+            canvas.configure(scrollregion=bbox)
+            start, end = canvas.yview()
+            has_overflow = not (start <= 0.001 and end >= 0.999)
+
+        if has_overflow and not self.file_scrollbar_visible:
+            if self.file_scrollbar_grid_opts:
+                scrollbar.grid(**self.file_scrollbar_grid_opts)
+            else:
+                scrollbar.grid(row=1, column=1, sticky="nsew")
+            self.file_scrollbar_visible = True
+        elif (not has_overflow) and self.file_scrollbar_visible:
+            scrollbar.grid_remove()
+            self.file_scrollbar_visible = False
+
+    def _on_file_list_canvas_configure(self):
+        """Keep file rows width aligned with parent frame."""
+        canvas = getattr(self.file_listbox, "_parent_canvas", None)
+        window_id = getattr(self.file_listbox, "_create_window_id", None)
+        if canvas is not None and window_id is not None:
+            canvas.itemconfigure(window_id, width=canvas.winfo_width())
+        self._update_file_list_scrollbar_visibility()
     
     def _remove_selected(self):
         """
@@ -425,7 +596,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
                 self.groups_container,
                 text=TEXT_NO_GROUPS,
                 font=Fonts.normal(),
-                text_color="gray"
+                text_color=COLOR_TEXT_MUTED,
             )
             no_groups_label.grid(row=0, column=0, pady=40)
             return

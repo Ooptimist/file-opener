@@ -67,40 +67,51 @@ COLOR_SECONDARY = "#34495e"                 # 次要按钮颜色（深灰）
 COLOR_SECONDARY_HOVER = "#2c3e50"           # 次要按钮悬停颜色
 
 # 背景颜色
-COLOR_BG_FRAME = "#2b2b2b"                  # 框架背景颜色
-COLOR_BG_FILE_LIST = "#1e1e1e"              # 文件列表背景颜色
+COLOR_BG_APP = "#151515"                    # 应用背景
+COLOR_BG_PANEL = "#1d1f22"                  # 主面板背景
+COLOR_BG_CARD = "#25272b"                   # 卡片背景
+COLOR_BG_CARD_HOVER = "#2d3035"             # 卡片悬停背景
+COLOR_BG_FILE_LIST = "#1a1c1f"              # 文件列表背景颜色
+COLOR_BG_FILE_ITEM = "#202327"              # 文件项背景颜色
+COLOR_BG_FILE_ITEM_HOVER = "#2a2d33"        # 文件项悬停背景
+COLOR_BG_FRAME = COLOR_BG_PANEL              # 兼容旧命名
+COLOR_BORDER = "#2f3238"                    # 边框颜色
+COLOR_BORDER_SOFT = "#3a3e45"               # 柔和边框
 
 # 文字颜色
-COLOR_TEXT_GRAY = "gray"                    # 灰色文字
+COLOR_TEXT_PRIMARY = "#f4f4f4"              # 主文字颜色
+COLOR_TEXT_SECONDARY = "#d7d7d7"            # 次级文字颜色
+COLOR_TEXT_MUTED = "#9b9b9b"                # 弱化文字颜色
+COLOR_TEXT_GRAY = COLOR_TEXT_MUTED           # 兼容旧命名
 
 # ========================================
 # UI 尺寸设置
 # ========================================
 # 按钮高度
-BUTTON_HEIGHT_LARGE = 40                    # 大按钮高度
+BUTTON_HEIGHT_LARGE = 42                    # 大按钮高度
 BUTTON_HEIGHT_NORMAL = 38                   # 普通按钮高度
 BUTTON_HEIGHT_SMALL = 32                    # 小按钮高度
 BUTTON_HEIGHT_ICON = 30                     # 图标按钮高度
 
 # 按钮宽度
-BUTTON_WIDTH_ICON = 60                      # 图标按钮宽度
+BUTTON_WIDTH_ICON = 64                      # 图标按钮宽度
 BUTTON_WIDTH_SMALL = 80                     # 小按钮宽度
 
 # 圆角半径
-CORNER_RADIUS_LARGE = 10                    # 大圆角（窗口框架）
-CORNER_RADIUS_NORMAL = 8                    # 普通圆角
-CORNER_RADIUS_SMALL = 6                     # 小圆角（按钮）
+CORNER_RADIUS_LARGE = 14                    # 大圆角（窗口框架）
+CORNER_RADIUS_NORMAL = 10                   # 普通圆角
+CORNER_RADIUS_SMALL = 8                     # 小圆角（按钮）
 CORNER_RADIUS_TINY = 4                      # 极小圆角
 
 # 间距
-PAD_X_LARGE = 20                            # 大水平间距
-PAD_X_NORMAL = 15                           # 普通水平间距
-PAD_X_SMALL = 10                            # 小水平间距
+PAD_X_LARGE = 22                            # 大水平间距
+PAD_X_NORMAL = 16                           # 普通水平间距
+PAD_X_SMALL = 12                            # 小水平间距
 PAD_X_TINY = 6                              # 极小水平间距
 
-PAD_Y_LARGE = 25                            # 大垂直间距
-PAD_Y_NORMAL = 15                           # 普通垂直间距
-PAD_Y_SMALL = 10                            # 小垂直间距
+PAD_Y_LARGE = 24                            # 大垂直间距
+PAD_Y_NORMAL = 16                           # 普通垂直间距
+PAD_Y_SMALL = 12                            # 小垂直间距
 PAD_Y_TINY = 8                              # 极小垂直间距
 
 # 边距
@@ -233,13 +244,14 @@ def get_groups_file_path():
 # ========================================
 # UI 文字常量
 # ========================================
-TEXT_TITLE = "📁 文件批量打开工具"
-TEXT_SELECT_FILES = "📝 选择文件"
-TEXT_SAVE_GROUP = "💾 保存文件组"
-TEXT_REMOVE = "🗑️ 移除"
-TEXT_OPEN = "🚀 打开"
-TEXT_MY_GROUPS = "📂 我的文件组"
-TEXT_CURRENT_FILES = "当前选择的文件"
+TEXT_TITLE = "文件批量打开工具"
+TEXT_SELECT_FILES = "选择文件"
+TEXT_SAVE_GROUP = "保存文件组"
+TEXT_REMOVE = "移除"
+TEXT_OPEN = "打开"
+TEXT_MY_GROUPS = "我的文件组"
+TEXT_CURRENT_FILES = "当前文件列表"
+TEXT_NO_FILES = "暂无文件\n\n点击「选择文件」或将文件拖拽到此区域"
 TEXT_NO_GROUPS = "暂无保存的文件组\n\n选择文件后点击「保存文件组」"
 TEXT_SAVE_GROUP_TITLE = "保存文件组"
 TEXT_SAVE_GROUP_PROMPT = "请输入文件组名称:"

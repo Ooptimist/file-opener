@@ -29,8 +29,22 @@ from ..defines import (
     TEXT_DELETE_GROUP_PROMPT,
     TEXT_CHECK_EXISTS,
     TEXT_CHECK_MISSING,
+    COLOR_BG_PANEL,
+    COLOR_BG_FILE_LIST,
+    COLOR_BORDER,
+    COLOR_PRIMARY,
+    COLOR_PRIMARY_HOVER,
+    COLOR_SUCCESS,
+    COLOR_SUCCESS_HOVER,
+    COLOR_DANGER,
+    COLOR_DANGER_HOVER,
+    COLOR_SECONDARY,
+    COLOR_SECONDARY_HOVER,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_MUTED,
+    CORNER_RADIUS_NORMAL,
 )
-from ..utils import Fonts
+from ..utils import Fonts, get_ui_icon
 
 
 class SaveGroupDialog:
@@ -64,17 +78,27 @@ class SaveGroupDialog:
         self.dialog.grab_set()
         self.dialog.resizable(False, False)
         self.dialog.withdraw()
+        self.dialog.configure(fg_color=COLOR_BG_PANEL)
         
         # 提示文字
         label = ctk.CTkLabel(
             self.dialog,
             text=TEXT_SAVE_GROUP_PROMPT,
-            font=Fonts.dialog_title()
+            font=Fonts.dialog_title(),
+            text_color=COLOR_TEXT_PRIMARY,
         )
         label.pack(pady=(25, 10))
         
         # 输入框
-        self.entry = ctk.CTkEntry(self.dialog, width=250, height=38)
+        self.entry = ctk.CTkEntry(
+            self.dialog,
+            width=250,
+            height=38,
+            fg_color=COLOR_BG_FILE_LIST,
+            border_color=COLOR_BORDER,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            text_color=COLOR_TEXT_PRIMARY,
+        )
         self.entry.pack(pady=8)
         
         # 按钮区域
@@ -88,7 +112,9 @@ class SaveGroupDialog:
             font=Fonts.small(),
             height=30,
             width=60,
-            corner_radius=6,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SECONDARY,
+            hover_color=COLOR_SECONDARY_HOVER,
             command=self._on_cancel
         ).pack(side="left", padx=12)
         
@@ -99,9 +125,9 @@ class SaveGroupDialog:
             font=Fonts.small(),
             height=30,
             width=60,
-            corner_radius=6,
-            fg_color="#27ae60",
-            hover_color="#1e8449",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SUCCESS,
+            hover_color=COLOR_SUCCESS_HOVER,
             command=self._on_save
         ).pack(side="left", padx=12)
         
@@ -157,12 +183,14 @@ class DeleteConfirmDialog:
         self.dialog.grab_set()
         self.dialog.resizable(False, False)
         self.dialog.withdraw()
+        self.dialog.configure(fg_color=COLOR_BG_PANEL)
         
         # 提示文字
         label = ctk.CTkLabel(
             self.dialog,
             text=TEXT_DELETE_GROUP_PROMPT.format(self.group_name),
-            font=Fonts.dialog()
+            font=Fonts.dialog(),
+            text_color=COLOR_TEXT_PRIMARY,
         )
         label.pack(pady=(25, 15))
         
@@ -176,7 +204,9 @@ class DeleteConfirmDialog:
             text=TEXT_CANCEL,
             height=32,
             width=80,
-            corner_radius=6,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SECONDARY,
+            hover_color=COLOR_SECONDARY_HOVER,
             command=self._on_cancel
         ).pack(side="left", padx=10)
         
@@ -186,9 +216,9 @@ class DeleteConfirmDialog:
             text="删除",
             height=32,
             width=80,
-            corner_radius=6,
-            fg_color="#e74c3c",
-            hover_color="#c0392b",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_DANGER,
+            hover_color=COLOR_DANGER_HOVER,
             command=self._on_delete
         ).pack(side="left", padx=10)
         
@@ -230,6 +260,11 @@ class EditGroupDialog:
         self.dialog = None
         self.file_checkboxes = []
         self.file_list_frame = None
+        self.ui_icons = {
+            "add_files": get_ui_icon("select-files", 16),
+            "remove": get_ui_icon("remove", 16),
+            "save": get_ui_icon("save-group", 16),
+        }
     
     def show(self):
         """
@@ -241,31 +276,41 @@ class EditGroupDialog:
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
         self.dialog.withdraw()
+        self.dialog.configure(fg_color=COLOR_BG_PANEL)
         
         # 标题
         title_label = ctk.CTkLabel(
             self.dialog,
             text=f"{TEXT_EDIT_GROUP_TITLE}: {self.group_name}",
-            font=Fonts.header()
+            font=Fonts.header(),
+            text_color=COLOR_TEXT_PRIMARY,
         )
         title_label.pack(pady=(20, 10))
         
         # 文件列表区域
-        list_container = ctk.CTkFrame(self.dialog, corner_radius=8)
+        list_container = ctk.CTkFrame(
+            self.dialog,
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_BG_FILE_LIST,
+            border_width=1,
+            border_color=COLOR_BORDER,
+        )
         list_container.pack(fill="both", expand=True, padx=20, pady=10)
         
         # 文件列表标题
         file_list_label = ctk.CTkLabel(
             list_container,
             text=TEXT_EDIT_GROUP_FILES,
-            font=Fonts.normal_bold()
+            font=Fonts.normal_bold(),
+            text_color=COLOR_TEXT_PRIMARY,
         )
         file_list_label.pack(pady=(10, 5))
         
         # 可滚动文件列表
         scroll_frame = ctk.CTkScrollableFrame(
             list_container,
-            label_text=""
+            label_text="",
+            fg_color=COLOR_BG_FILE_LIST,
         )
         scroll_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
         
@@ -281,11 +326,13 @@ class EditGroupDialog:
         add_btn = ctk.CTkButton(
             btn_frame,
             text=TEXT_EDIT_ADD_FILES,
+            image=self.ui_icons.get("add_files"),
+            compound="left",
             font=Fonts.small(),
             height=35,
-            corner_radius=6,
-            fg_color="#3498db",
-            hover_color="#2980b9",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_PRIMARY,
+            hover_color=COLOR_PRIMARY_HOVER,
             command=self._on_add_files
         )
         add_btn.grid(row=0, column=0, padx=10)
@@ -294,11 +341,13 @@ class EditGroupDialog:
         remove_btn = ctk.CTkButton(
             btn_frame,
             text=TEXT_EDIT_REMOVE_SELECTED,
+            image=self.ui_icons.get("remove"),
+            compound="left",
             font=Fonts.small(),
             height=35,
-            corner_radius=6,
-            fg_color="#e74c3c",
-            hover_color="#c0392b",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_DANGER,
+            hover_color=COLOR_DANGER_HOVER,
             command=self._on_remove_selected
         )
         remove_btn.grid(row=0, column=1, padx=10)
@@ -307,12 +356,14 @@ class EditGroupDialog:
         save_btn = ctk.CTkButton(
             btn_frame,
             text=TEXT_SAVE,
+            image=self.ui_icons.get("save"),
+            compound="left",
             font=Fonts.small(),
             height=35,
             width=80,
-            corner_radius=6,
-            fg_color="#27ae60",
-            hover_color="#1e8449",
+            corner_radius=CORNER_RADIUS_NORMAL,
+            fg_color=COLOR_SUCCESS,
+            hover_color=COLOR_SUCCESS_HOVER,
             command=self._on_save
         )
         save_btn.grid(row=0, column=2, padx=10)
@@ -338,7 +389,7 @@ class EditGroupDialog:
                 self.file_list_frame,
                 text="暂无文件，请点击「添加文件」",
                 font=Fonts.small(),
-                text_color="gray"
+                text_color=COLOR_TEXT_MUTED,
             )
             no_files_label.pack(pady=20)
             return
@@ -353,6 +404,10 @@ class EditGroupDialog:
                 self.file_list_frame,
                 text=f"{icon} {file_name}",
                 font=Fonts.small(),
+                text_color=COLOR_TEXT_PRIMARY,
+                hover_color=COLOR_PRIMARY,
+                fg_color=COLOR_PRIMARY,
+                border_color=COLOR_BORDER,
                 checkbox_width=18,
                 checkbox_height=18
             )
