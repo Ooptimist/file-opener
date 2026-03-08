@@ -222,7 +222,7 @@ class GroupWidget:
     """
     
     def __init__(self, parent, group_name, valid_count, total_count, 
-                 on_expand, on_open, on_delete):
+                 on_expand, on_open, on_edit, on_delete):
         """
         初始化文件组组件
         
@@ -233,6 +233,7 @@ class GroupWidget:
             total_count (int): 总文件数
             on_expand: 展开/折叠回调
             on_open: 打开组回调
+            on_edit: 编辑组回调
             on_delete: 删除组回调
         """
         self.group_name = group_name
@@ -242,7 +243,7 @@ class GroupWidget:
         
         # 创建主框架
         self.frame = ctk.CTkFrame(parent, corner_radius=CORNER_RADIUS_NORMAL, fg_color="#2b2b2b")
-        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(1, weight=1)  # 组名列可拉伸
         
         # 展开/折叠按钮
         self.expand_btn = ctk.CTkButton(
@@ -290,6 +291,20 @@ class GroupWidget:
         )
         open_btn.grid(row=0, column=3, padx=(PAD_X_TINY, 4))
         
+        # 编辑按钮
+        edit_btn = ctk.CTkButton(
+            self.frame,
+            text="编辑",
+            height=BUTTON_HEIGHT_ICON,
+            width=BUTTON_WIDTH_ICON,
+            corner_radius=CORNER_RADIUS_SMALL,
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            font=Fonts.small(),
+            command=lambda: on_edit(group_name)
+        )
+        edit_btn.grid(row=0, column=4, padx=(PAD_X_TINY, 4))
+        
         # 删除按钮
         delete_btn = ctk.CTkButton(
             self.frame,
@@ -302,7 +317,7 @@ class GroupWidget:
             font=Fonts.small(),
             command=lambda: on_delete(group_name)
         )
-        delete_btn.grid(row=0, column=4, padx=(4, 10))
+        delete_btn.grid(row=0, column=5, padx=(4, 10))
     
     def update_count(self, valid_count, total_count):
         """
@@ -362,7 +377,8 @@ class GroupWidget:
         显示文件列表
         """
         if self.files_frame:
-            self.files_frame.grid(row=1, column=0, columnspan=5, padx=6, pady=(0, 4), sticky="ew")
+            # columnspan=6 因为有6列（展开、名称、计数、打开、编辑、删除）
+            self.files_frame.grid(row=1, column=0, columnspan=6, padx=6, pady=(0, 4), sticky="ew")
     
     def hide_files(self):
         """

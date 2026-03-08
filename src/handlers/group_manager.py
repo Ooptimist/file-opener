@@ -154,3 +154,60 @@ class GroupManager:
         
         existing = sum(1 for f in files if os.path.exists(f))
         return existing, len(files)
+    
+    def add_file_to_group(self, group_name, file_path):
+        """
+        添加单个文件到文件组
+        
+        Args:
+            group_name (str): 文件组名称
+            file_path (str): 文件路径
+        
+        Returns:
+            bool: 是否添加成功
+        """
+        if group_name not in self.groups:
+            return False
+        
+        if file_path in self.groups[group_name]:
+            return True  # 文件已存在，视为成功
+        
+        self.groups[group_name].append(file_path)
+        return self.save()
+    
+    def remove_file_from_group(self, group_name, file_index):
+        """
+        从文件组删除指定索引的文件
+        
+        Args:
+            group_name (str): 文件组名称
+            file_index (int): 文件索引
+        
+        Returns:
+            bool: 是否删除成功
+        """
+        if group_name not in self.groups:
+            return False
+        
+        files = self.groups[group_name]
+        if 0 <= file_index < len(files):
+            files.pop(file_index)
+            return self.save()
+        return False
+    
+    def update_group_files(self, group_name, files):
+        """
+        批量更新文件组的文件列表
+        
+        Args:
+            group_name (str): 文件组名称
+            files (list): 新的文件路径列表
+        
+        Returns:
+            bool: 是否更新成功
+        """
+        if group_name not in self.groups:
+            return False
+        
+        self.groups[group_name] = list(files)
+        return self.save()

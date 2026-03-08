@@ -11,6 +11,7 @@ from .ui_components import *
 __all__ = [
     'SaveGroupDialog',
     'DeleteConfirmDialog',
+    'EditGroupDialog',
     'FileCheckbox',
     'GroupWidget',
     'create_primary_button',

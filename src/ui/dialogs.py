@@ -5,18 +5,30 @@ dialogs.py
 提供各种对话框的实现，包括保存文件组、删除确认等
 """
 
+import os
 import customtkinter as ctk
+from tkinter import filedialog
 from ..defines import (
     DIALOG_SAVE_WIDTH,
     DIALOG_SAVE_HEIGHT,
     DIALOG_DELETE_WIDTH,
     DIALOG_DELETE_HEIGHT,
+    DIALOG_EDIT_WIDTH,
+    DIALOG_EDIT_HEIGHT,
+    FILE_DIALOG_TITLE,
+    FILE_TYPES,
     TEXT_SAVE_GROUP_TITLE,
     TEXT_SAVE_GROUP_PROMPT,
+    TEXT_EDIT_GROUP_TITLE,
+    TEXT_EDIT_GROUP_FILES,
+    TEXT_EDIT_ADD_FILES,
+    TEXT_EDIT_REMOVE_SELECTED,
     TEXT_SAVE,
     TEXT_CANCEL,
     TEXT_DELETE_GROUP_TITLE,
     TEXT_DELETE_GROUP_PROMPT,
+    TEXT_CHECK_EXISTS,
+    TEXT_CHECK_MISSING,
 )
 from ..utils import Fonts
 
@@ -191,4 +203,202 @@ class DeleteConfirmDialog:
     def _on_delete(self):
         """删除按钮回调"""
         self.on_confirm()
+        self.dialog.destroy()
+
+
+class EditGroupDialog:
+    """
+    编辑文件组对话框
+    
+    用于编辑已保存的文件组中的文件列表
+    """
+    
+    def __init__(self, parent, group_name, current_files, on_save):
+        """
+        初始化对话框
+        
+        Args:
+            parent: 父窗口
+            group_name (str): 文件组名称
+            current_files (list): 当前文件列表
+            on_save (callable): 保存回调函数，接收新的文件列表参数
+        """
+        self.parent = parent
+        self.group_name = group_name
+        self.files = list(current_files)  # 创建副本
+        self.on_save = on_save
+        self.dialog = None
+        self.file_checkboxes = []
+        self.file_list_frame = None
+    
+    def show(self):
+        """
+        显示对话框
+        """
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title(f"{TEXT_EDIT_GROUP_TITLE} - {self.group_name}")
+        self.dialog.geometry(f"{DIALOG_EDIT_WIDTH}x{DIALOG_EDIT_HEIGHT}")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        self.dialog.withdraw()
+        
+        # 标题
+        title_label = ctk.CTkLabel(
+            self.dialog,
+            text=f"{TEXT_EDIT_GROUP_TITLE}: {self.group_name}",
+            font=Fonts.header()
+        )
+        title_label.pack(pady=(20, 10))
+        
+        # 文件列表区域
+        list_container = ctk.CTkFrame(self.dialog, corner_radius=8)
+        list_container.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # 文件列表标题
+        file_list_label = ctk.CTkLabel(
+            list_container,
+            text=TEXT_EDIT_GROUP_FILES,
+            font=Fonts.normal_bold()
+        )
+        file_list_label.pack(pady=(10, 5))
+        
+        # 可滚动文件列表
+        scroll_frame = ctk.CTkScrollableFrame(
+            list_container,
+            label_text=""
+        )
+        scroll_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        
+        self.file_list_frame = scroll_frame
+        self._update_file_list()
+        
+        # 按钮区域
+        btn_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
+        btn_frame.pack(pady=(10, 20))
+        btn_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        
+        # 添加文件按钮
+        add_btn = ctk.CTkButton(
+            btn_frame,
+            text=TEXT_EDIT_ADD_FILES,
+            font=Fonts.small(),
+            height=35,
+            corner_radius=6,
+            fg_color="#3498db",
+            hover_color="#2980b9",
+            command=self._on_add_files
+        )
+        add_btn.grid(row=0, column=0, padx=10)
+        
+        # 删除选中按钮
+        remove_btn = ctk.CTkButton(
+            btn_frame,
+            text=TEXT_EDIT_REMOVE_SELECTED,
+            font=Fonts.small(),
+            height=35,
+            corner_radius=6,
+            fg_color="#e74c3c",
+            hover_color="#c0392b",
+            command=self._on_remove_selected
+        )
+        remove_btn.grid(row=0, column=1, padx=10)
+        
+        # 保存按钮
+        save_btn = ctk.CTkButton(
+            btn_frame,
+            text=TEXT_SAVE,
+            font=Fonts.small(),
+            height=35,
+            width=80,
+            corner_radius=6,
+            fg_color="#27ae60",
+            hover_color="#1e8449",
+            command=self._on_save
+        )
+        save_btn.grid(row=0, column=2, padx=10)
+        
+        # 显示对话框
+        self.dialog.update_idletasks()
+        self.dialog.deiconify()
+    
+    def _update_file_list(self):
+        """
+        更新文件列表显示
+        """
+        if not self.file_list_frame:
+            return
+            
+        # 清除现有列表
+        for widget in self.file_list_frame.winfo_children():
+            widget.destroy()
+        
+        # 如果没有文件，显示提示
+        if not self.files:
+            no_files_label = ctk.CTkLabel(
+                self.file_list_frame,
+                text="暂无文件，请点击「添加文件」",
+                font=Fonts.small(),
+                text_color="gray"
+            )
+            no_files_label.pack(pady=20)
+            return
+        
+        # 创建新的文件列表
+        for idx, file_path in enumerate(self.files):
+            file_name = os.path.basename(file_path)
+            exists = os.path.exists(file_path)
+            icon = TEXT_CHECK_EXISTS if exists else TEXT_CHECK_MISSING
+            
+            checkbox = ctk.CTkCheckBox(
+                self.file_list_frame,
+                text=f"{icon} {file_name}",
+                font=Fonts.small(),
+                checkbox_width=18,
+                checkbox_height=18
+            )
+            checkbox.pack(fill="x", padx=5, pady=2)
+            checkbox.file_index = idx
+            self.file_checkboxes.append(checkbox)
+    
+    def _on_add_files(self):
+        """添加文件按钮回调"""
+        files = filedialog.askopenfilenames(
+            title=FILE_DIALOG_TITLE,
+            filetypes=FILE_TYPES
+        )
+        
+        if files:
+            # 添加不重复的文件
+            for file_path in files:
+                if file_path not in self.files:
+                    self.files.append(file_path)
+            self._update_file_list()
+    
+    def _on_remove_selected(self):
+        """删除选中按钮回调"""
+        if not self.files:
+            return
+            
+        checked_indices = []
+        for item in self.file_checkboxes:
+            # 检查是否是 CTkCheckBox（带 get 方法）
+            if hasattr(item, 'get') and hasattr(item, 'file_index'):
+                if item.get():
+                    checked_indices.append(item.file_index)
+        
+        if not checked_indices:
+            return
+        
+        # 从后往前删除，避免索引变化
+        checked_indices.sort(reverse=True)
+        for idx in checked_indices:
+            if 0 <= idx < len(self.files):
+                self.files.pop(idx)
+        
+        self._update_file_list()
+    
+    def _on_save(self):
+        """保存按钮回调"""
+        if self.files:
+            self.on_save(self.files)
         self.dialog.destroy()

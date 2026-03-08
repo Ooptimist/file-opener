@@ -118,6 +118,8 @@ DIALOG_SAVE_WIDTH = 380                     # 保存对话框宽度
 DIALOG_SAVE_HEIGHT = 200                    # 保存对话框高度
 DIALOG_DELETE_WIDTH = 320                   # 删除对话框宽度
 DIALOG_DELETE_HEIGHT = 130                  # 删除对话框高度
+DIALOG_EDIT_WIDTH = 600                     # 编辑对话框宽度
+DIALOG_EDIT_HEIGHT = 500                    # 编辑对话框高度
 
 # ========================================
 # 文件选择器设置
@@ -236,6 +238,10 @@ TEXT_CURRENT_FILES = "当前选择的文件"
 TEXT_NO_GROUPS = "暂无保存的文件组\n\n选择文件后点击「保存文件组」"
 TEXT_SAVE_GROUP_TITLE = "保存文件组"
 TEXT_SAVE_GROUP_PROMPT = "请输入文件组名称:"
+TEXT_EDIT_GROUP_TITLE = "编辑文件组"
+TEXT_EDIT_GROUP_FILES = "文件列表"
+TEXT_EDIT_ADD_FILES = "添加文件"
+TEXT_EDIT_REMOVE_SELECTED = "删除选中"
 TEXT_SAVE = "保存"
 TEXT_CANCEL = "取消"
 TEXT_DELETE_GROUP_TITLE = "确认删除"

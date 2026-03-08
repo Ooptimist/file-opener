@@ -50,7 +50,7 @@ from src.handlers.file_handler import (
 )
 from src.handlers.drag_drop import DragDropHandler
 from src.handlers.group_manager import GroupManager
-from src.ui.dialogs import SaveGroupDialog, DeleteConfirmDialog
+from src.ui.dialogs import SaveGroupDialog, DeleteConfirmDialog, EditGroupDialog
 from src.ui.ui_components import GroupWidget, FileCheckbox
 
 
@@ -434,6 +434,7 @@ class FileOpenerApp(ctk.CTk):
                     total_count,
                     self._toggle_group_expand,
                     self._open_group,
+                    self._edit_group,
                     self._delete_group
                 )
                 self.group_widgets[group_name] = widget
@@ -486,6 +487,22 @@ class FileOpenerApp(ctk.CTk):
         success_count, failed_files = open_files(files)
         if failed_files:
             print(f"成功打开 {success_count} 个文件，{len(failed_files)} 个文件失败")
+    
+    def _edit_group(self, group_name):
+        """
+        编辑指定文件组
+        
+        Args:
+            group_name (str): 文件组名称
+        """
+        current_files = self.group_manager.get_group(group_name)
+        
+        def on_save(new_files):
+            self.group_manager.update_group_files(group_name, new_files)
+            self._update_groups_panel()
+        
+        dialog = EditGroupDialog(self, group_name, current_files, on_save)
+        dialog.show()
     
     def _delete_group(self, group_name):
         """
