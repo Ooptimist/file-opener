@@ -9,6 +9,7 @@ import os
 import ctypes
 from ctypes import windll
 import customtkinter as ctk
+from tkinterdnd2 import TkinterDnD
 
 # 导入配置
 from src.defines import (
@@ -48,13 +49,13 @@ from src.handlers.file_handler import (
     open_files,
     count_existing_files
 )
-from src.handlers.drag_drop import DragDropHandler
+from src.handlers.tkdnd_drop_zone import TkDnDDropZone
 from src.handlers.group_manager import GroupManager
 from src.ui.dialogs import SaveGroupDialog, DeleteConfirmDialog, EditGroupDialog
 from src.ui.ui_components import GroupWidget, FileCheckbox
 
 
-class FileOpenerApp(ctk.CTk):
+class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
     """
     文件批量打开工具主应用类
     """
@@ -64,6 +65,7 @@ class FileOpenerApp(ctk.CTk):
         初始化应用程序
         """
         super().__init__()
+        TkinterDnD._require(self)
         
         # 配置窗口基本属性
         self._setup_window()
@@ -80,8 +82,11 @@ class FileOpenerApp(ctk.CTk):
         # 构建UI
         self._build_ui()
         
-        # 初始化拖拽功能
-        self.drag_drop = DragDropHandler(self, self._on_files_dropped)
+        # 初始化拖拽功能（仅文件列表区域生效）
+        self.drag_drop = TkDnDDropZone(
+            target_widget=self.file_list_container,
+            on_files_dropped=self._on_files_dropped,
+        )
         self.drag_drop.setup()
     
     def _setup_window(self):
@@ -217,6 +222,7 @@ class FileOpenerApp(ctk.CTk):
         list_frame = ctk.CTkFrame(parent, corner_radius=8)
         list_frame.grid(row=2, column=0, padx=PAD_X_NORMAL, pady=PAD_Y_SMALL, sticky="nsew")
         list_frame.grid_columnconfigure(0, weight=1)
+        self.file_list_container = list_frame
         
         self.file_listbox = ctk.CTkScrollableFrame(
             list_frame,
@@ -292,22 +298,40 @@ class FileOpenerApp(ctk.CTk):
         Args:
             files (list): 拖拽的文件路径列表
         """
-        for filepath in files:
-            if filepath and filepath not in self.selected_files:
-                self.selected_files.append(filepath)
-        
-        self._update_file_list()
+        self._add_files_to_selection(files)
+
+    def _add_files_to_selection(self, files):
+        """
+        统一添加文件到当前选择列表
+
+        该方法被“选择文件按钮”和“拖拽文件”共用，确保行为一致。
+
+        Args:
+            files (list): 文件路径列表
+        """
+        if not files:
+            return
+
+        added = False
+        for file_path in files:
+            if not file_path:
+                continue
+            if not os.path.isfile(file_path):
+                continue
+            if file_path in self.selected_files:
+                continue
+            self.selected_files.append(file_path)
+            added = True
+
+        if added:
+            self._update_file_list()
     
     def _add_files(self):
         """
         通过对话框添加文件
         """
         files = select_files_dialog()
-        if files:
-            for file in files:
-                if file not in self.selected_files:
-                    self.selected_files.append(file)
-            self._update_file_list()
+        self._add_files_to_selection(files)
     
     def _update_file_list(self):
         """

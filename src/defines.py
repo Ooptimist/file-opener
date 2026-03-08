@@ -188,6 +188,11 @@ WIN_GWL_WNDPROC = -4                        # Windows窗口过程索引
 DELAY_DROP_REGISTER = 100                   # 拖拽注册延迟
 DELAY_UPDATE_AFTER_DROP = 10                # 拖拽后更新延迟
 
+# ========================================
+# 拖拽策略
+# ========================================
+DROP_ONLY_IN_FILE_LIST = True               # 是否仅在“当前选择的文件框”中允许拖拽生效
+
 
 def get_app_dir():
     """

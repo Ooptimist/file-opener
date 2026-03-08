@@ -7,7 +7,7 @@ Windows 文件拖拽处理模块
 """
 
 import ctypes
-from ctypes import windll, wintypes, POINTER, byref, c_void_p, c_int
+from ctypes import windll, wintypes, byref, c_void_p
 from ..defines import (
     WIN_GMEM_MOVEABLE,
     WIN_WM_DROPFILES,
@@ -24,16 +24,26 @@ class DragDropHandler:
     使用 Windows API 实现从资源管理器拖拽文件到窗口
     """
     
-    def __init__(self, widget, on_files_dropped):
+    def __init__(
+        self,
+        widget,
+        on_files_dropped,
+        drop_target_widget=None,
+        restrict_to_target=False,
+    ):
         """
         初始化拖拽处理器
         
         Args:
-            widget: Tkinter/CustomTkinter 窗口部件
+            widget: Tkinter/CustomTkinter 主窗口部件
             on_files_dropped (callable): 当文件被拖入时的回调函数，接收文件列表参数
+            drop_target_widget: 允许拖拽生效的目标控件
+            restrict_to_target (bool): 是否仅在目标控件区域内生效
         """
         self.widget = widget
         self.on_files_dropped = on_files_dropped
+        self.drop_target_widget = drop_target_widget
+        self.restrict_to_target = restrict_to_target
         self._old_wndproc = None
         self._wndproc = None
         
@@ -53,9 +63,28 @@ class DragDropHandler:
         try:
             hwnd = self.widget.winfo_id()
             windll.shell32.DragAcceptFiles(hwnd, True)
+
+            # 64 位系统下需使用指针宽度类型，避免 OverflowError
+            windll.user32.GetWindowLongPtrW.restype = c_void_p
+            windll.user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, c_void_p]
+            windll.user32.SetWindowLongPtrW.restype = c_void_p
+            windll.user32.CallWindowProcW.argtypes = [
+                c_void_p,
+                wintypes.HWND,
+                wintypes.UINT,
+                wintypes.WPARAM,
+                wintypes.LPARAM,
+            ]
+            windll.user32.CallWindowProcW.restype = ctypes.c_ssize_t
             
             # 定义窗口过程回调类型
-            WNDPROC = ctypes.WINFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
+            WNDPROC = ctypes.WINFUNCTYPE(
+                ctypes.c_ssize_t,
+                wintypes.HWND,
+                wintypes.UINT,
+                wintypes.WPARAM,
+                wintypes.LPARAM,
+            )
             
             # 保存原始窗口过程
             self._old_wndproc = windll.user32.GetWindowLongPtrW(hwnd, WIN_GWL_WNDPROC)
@@ -85,6 +114,10 @@ class DragDropHandler:
             hdrop: Windows HDROP 句柄
         """
         try:
+            if self.restrict_to_target and not self._is_drop_in_target(hdrop):
+                windll.shell32.DragFinish(hdrop)
+                return
+
             # 获取拖拽的文件数量
             num_files = windll.shell32.DragQueryFileW(hdrop, 0xFFFFFFFF, None, 0)
             
@@ -110,3 +143,46 @@ class DragDropHandler:
             
         except Exception as e:
             print(f"处理拖拽文件错误: {e}")
+
+    def _is_drop_in_target(self, hdrop):
+        """
+        判断拖放点是否位于目标控件区域内
+
+        Args:
+            hdrop: Windows HDROP 句柄
+
+        Returns:
+            bool: 是否在目标控件内
+        """
+        if self.drop_target_widget is None:
+            return True
+
+        try:
+            point_client = wintypes.POINT()
+            windll.shell32.DragQueryPoint(hdrop, byref(point_client))
+
+            # 将主窗口客户区坐标精确转换为屏幕坐标
+            point_screen = wintypes.POINT(point_client.x, point_client.y)
+            windll.user32.ClientToScreen(self.widget.winfo_id(), byref(point_screen))
+
+            widget_under = self.widget.winfo_containing(point_screen.x, point_screen.y)
+            if widget_under is None:
+                return False
+
+            # 允许目标控件及其子控件区域内生效
+            return self._is_descendant_or_self(widget_under, self.drop_target_widget)
+        except Exception as e:
+            print(f"拖放区域判断失败: {e}")
+            return False
+
+    @staticmethod
+    def _is_descendant_or_self(widget, target_widget):
+        """
+        判断 widget 是否为 target_widget 本身或其子控件
+        """
+        current = widget
+        while current is not None:
+            if current == target_widget:
+                return True
+            current = current.master
+        return False

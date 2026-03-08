@@ -7,6 +7,8 @@
 
 from .file_handler import *
 from .drag_drop import *
+from .file_drop_zone import *
+from .tkdnd_drop_zone import *
 from .group_manager import *
 
 __all__ = [
@@ -16,5 +18,7 @@ __all__ = [
     'filter_existing_files',
     'count_existing_files',
     'DragDropHandler',
+    'FileDropZone',
+    'TkDnDDropZone',
     'GroupManager',
 ]
