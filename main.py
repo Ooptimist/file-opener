@@ -97,6 +97,9 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         
         # 初始化管理器
         self.group_manager = GroupManager()
+        self.save_group_dialog = SaveGroupDialog(self)
+        self.edit_group_dialog = EditGroupDialog(self)
+        self.delete_group_dialog = DeleteConfirmDialog(self)
         
         # 构建UI
         self._load_icons()
@@ -566,8 +569,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
             self.group_manager.add_group(group_name, self.selected_files)
             self._update_groups_panel()
         
-        dialog = SaveGroupDialog(self, on_confirm)
-        dialog.show()
+        self.save_group_dialog.show(on_confirm)
     
     def _update_groups_panel(self):
         """
@@ -696,8 +698,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
             self.group_manager.update_group_files(group_name, new_files)
             self._update_groups_panel()
         
-        dialog = EditGroupDialog(self, group_name, current_files, on_save)
-        dialog.show()
+        self.edit_group_dialog.show(group_name, current_files, on_save)
     
     def _delete_group(self, group_name):
         """
@@ -714,8 +715,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
                 del self.group_widgets[group_name]
             self._update_groups_panel()
         
-        dialog = DeleteConfirmDialog(self, group_name, on_confirm)
-        dialog.show()
+        self.delete_group_dialog.show(group_name, on_confirm)
 
 
 def main():
