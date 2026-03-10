@@ -444,7 +444,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         """
         通过对话框添加文件
         """
-        files = select_files_dialog()
+        files = select_files_dialog(self)
         self._add_files_to_selection(files)
     
     def _update_file_list(self):

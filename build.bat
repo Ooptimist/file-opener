@@ -15,12 +15,22 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/6] Python check passed...
+echo [1/7] Python check passed...
+
+REM Check tkinter
+python -c "import tkinter" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] tkinter is unavailable in current Python.
+    echo Please reinstall Python and enable Tcl/Tk support, then rebuild.
+    pause
+    exit /b 1
+)
+echo [2/7] tkinter check passed...
 
 REM Check PyInstaller
 pip show pyinstaller >nul 2>&1
 if errorlevel 1 (
-    echo [2/6] PyInstaller not found, installing...
+    echo [3/7] PyInstaller not found, installing...
     pip install pyinstaller
     if errorlevel 1 (
         echo [ERROR] PyInstaller installation failed
@@ -28,18 +38,18 @@ if errorlevel 1 (
         exit /b 1
     )
 ) else (
-    echo [2/6] PyInstaller is installed...
+    echo [3/7] PyInstaller is installed...
 )
 
 REM Clean old build files
-echo [3/6] Cleaning old build files...
+echo [4/7] Cleaning old build files...
 if exist "build" (
     rmdir /s /q "build" 2>nul
     echo         Deleted build directory
 )
 
 REM Handle file lock
-echo [4/6] Checking file lock...
+echo [5/7] Checking file lock...
 set FILE_LOCKED=0
 
 if exist "dist\FileOpener.exe" (
@@ -87,7 +97,7 @@ if exist "dist\FileOpener.exe" (
 )
 
 REM Build
-echo [5/6] Starting build...
+echo [6/7] Starting build...
 echo.
 
 python -m PyInstaller --clean --noconfirm FileOpener.spec
@@ -106,7 +116,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/6] Build complete!
+echo [7/7] Build complete!
 echo.
 
 REM Check output file

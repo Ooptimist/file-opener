@@ -47,6 +47,24 @@ from ..defines import (
 from ..utils import Fonts, get_ui_icon
 
 
+def _center_dialog_to_parent(dialog, parent):
+    """Center a dialog relative to its parent window."""
+    parent.update_idletasks()
+    dialog.update_idletasks()
+
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_width = parent.winfo_width()
+    parent_height = parent.winfo_height()
+
+    dialog_width = dialog.winfo_width()
+    dialog_height = dialog.winfo_height()
+
+    x = max(parent_x + (parent_width - dialog_width) // 2, 0)
+    y = max(parent_y + (parent_height - dialog_height) // 2, 0)
+    dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+
+
 class SaveGroupDialog:
     """
     保存文件组对话框
@@ -133,6 +151,7 @@ class SaveGroupDialog:
         
         # 显示对话框并聚焦输入框
         self.dialog.update_idletasks()
+        _center_dialog_to_parent(self.dialog, self.parent)
         self.entry.focus()
         self.dialog.deiconify()
         
@@ -224,6 +243,7 @@ class DeleteConfirmDialog:
         
         # 显示对话框
         self.dialog.update_idletasks()
+        _center_dialog_to_parent(self.dialog, self.parent)
         self.dialog.deiconify()
     
     def _on_cancel(self):
@@ -370,6 +390,7 @@ class EditGroupDialog:
         
         # 显示对话框
         self.dialog.update_idletasks()
+        _center_dialog_to_parent(self.dialog, self.parent)
         self.dialog.deiconify()
     
     def _update_file_list(self):
@@ -419,7 +440,8 @@ class EditGroupDialog:
         """添加文件按钮回调"""
         files = filedialog.askopenfilenames(
             title=FILE_DIALOG_TITLE,
-            filetypes=FILE_TYPES
+            filetypes=FILE_TYPES,
+            parent=self.dialog,
         )
         
         if files:

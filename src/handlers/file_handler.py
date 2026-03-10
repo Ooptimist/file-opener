@@ -65,7 +65,7 @@ def open_files(file_list):
     return success_count, failed_files
 
 
-def select_files_dialog():
+def select_files_dialog(parent=None):
     """
     显示文件选择对话框
     
@@ -74,7 +74,8 @@ def select_files_dialog():
     """
     files = filedialog.askopenfilenames(
         title=FILE_DIALOG_TITLE,
-        filetypes=FILE_TYPES
+        filetypes=FILE_TYPES,
+        parent=parent,
     )
     return list(files)
 
