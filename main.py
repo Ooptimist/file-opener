@@ -97,6 +97,9 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         self.file_scrollbar_visible = False
         self.expanded_groups = set()
         self.group_widgets = {}
+        self.no_groups_label = None
+        self.group_file_snapshots = {}
+        self.group_count_cache = {}
         
         # 初始化管理器
         self.group_manager = GroupManager()
@@ -604,54 +607,62 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         更新文件组面板显示
         """
         groups = self.group_manager.get_all_groups()
-        
-        # 清理已删除的组件
+
+        # 清理已删除的组件与缓存
         existing_groups = set(self.group_widgets.keys())
         current_groups = set(groups.keys())
-        
+
         for group_name in existing_groups - current_groups:
             self.group_widgets[group_name].destroy()
             del self.group_widgets[group_name]
-        
-        # 清空容器（注意：这会销毁所有GroupWidget的frame，所以需要清空字典）
-        for widget in self.groups_container.winfo_children():
-            widget.destroy()
-        
-        # 清空组件字典，因为所有frame都被销毁了，需要重新创建
-        self.group_widgets.clear()
-        
+            self.expanded_groups.discard(group_name)
+            self.group_file_snapshots.pop(group_name, None)
+            self.group_count_cache.pop(group_name, None)
+
         # 如果没有文件组，显示提示
         if not groups:
-            no_groups_label = ctk.CTkLabel(
-                self.groups_container,
-                text=TEXT_NO_GROUPS,
-                font=Fonts.normal(),
-                text_color=COLOR_TEXT_MUTED,
-            )
-            no_groups_label.grid(row=0, column=0, pady=40)
+            if self.no_groups_label is None or not self.no_groups_label.winfo_exists():
+                self.no_groups_label = ctk.CTkLabel(
+                    self.groups_container,
+                    text=TEXT_NO_GROUPS,
+                    font=Fonts.normal(),
+                    text_color=COLOR_TEXT_MUTED,
+                )
+            self.no_groups_label.grid(row=0, column=0, pady=40)
             return
-        
-        # 创建或更新文件组组件
+
+        # 有文件组时隐藏空态提示
+        if self.no_groups_label is not None and self.no_groups_label.winfo_exists():
+            self.no_groups_label.grid_forget()
+
+        # 创建或更新文件组组件（增量更新，避免全量销毁重建）
+        group_row_pady = 5
         for idx, (group_name, files) in enumerate(groups.items()):
-            valid_count, total_count = count_existing_files(files)
-            
+            files_snapshot = tuple(files)
+            cached_snapshot = self.group_file_snapshots.get(group_name)
+            if cached_snapshot != files_snapshot:
+                valid_count, total_count = count_existing_files(files)
+                self.group_file_snapshots[group_name] = files_snapshot
+                self.group_count_cache[group_name] = (valid_count, total_count)
+            else:
+                valid_count, total_count = self.group_count_cache.get(
+                    group_name,
+                    (0, len(files)),
+                )
+
             if group_name in self.group_widgets:
-                # 更新现有组件
                 widget = self.group_widgets[group_name]
                 widget.update_count(valid_count, total_count)
                 widget.set_expand_icon(group_name in self.expanded_groups)
-                
-                # 处理展开/折叠的文件列表
+
                 if group_name in self.expanded_groups:
-                    if widget.files_frame is None:
-                        widget.create_files_frame(files)
+                    widget.create_files_frame(files)
                     widget.show_files()
                 else:
                     widget.hide_files()
-                
-                widget.frame.grid(row=idx, column=0, pady=3, sticky="ew")
+
+                widget.frame.grid(row=idx, column=0, pady=group_row_pady, sticky="ew")
             else:
-                # 创建新组件
                 widget = GroupWidget(
                     self.groups_container,
                     group_name,
@@ -663,13 +674,12 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
                     self._delete_group
                 )
                 self.group_widgets[group_name] = widget
-                
-                # 如果默认展开
+
                 if group_name in self.expanded_groups:
                     widget.create_files_frame(files)
                     widget.show_files()
-                
-                widget.frame.grid(row=idx, column=0, pady=5, sticky="ew")
+
+                widget.frame.grid(row=idx, column=0, pady=group_row_pady, sticky="ew")
     
     def _toggle_group_expand(self, group_name):
         """
@@ -738,6 +748,8 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         def on_confirm():
             self.group_manager.delete_group(group_name)
             self.expanded_groups.discard(group_name)
+            self.group_file_snapshots.pop(group_name, None)
+            self.group_count_cache.pop(group_name, None)
             if group_name in self.group_widgets:
                 self.group_widgets[group_name].destroy()
                 del self.group_widgets[group_name]
