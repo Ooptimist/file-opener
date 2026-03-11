@@ -8,7 +8,6 @@ import ctypes
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
-from customtkinter.windows.widgets.scaling.scaling_tracker import ScalingTracker
 from ..defines import (
     DIALOG_SAVE_WIDTH,
     DIALOG_SAVE_HEIGHT,
@@ -93,41 +92,6 @@ def _configure_dialog_window(dialog):
     dialog.after_idle(lambda d=dialog: _set_windows_dark_title_bar(d))
 
 
-def _sync_dialog_scaling_with_parent(dialog, parent):
-    """
-    Sync dialog scaling callbacks to the parent's DPI scaling before revealing the dialog.
-    This prevents first-show content re-scaling jumps.
-    """
-    try:
-        if dialog not in ScalingTracker.window_widgets_dict:
-            return
-
-        parent_scale = ScalingTracker.window_dpi_scaling_dict.get(parent)
-        if parent_scale is None:
-            parent_scale = ScalingTracker.get_window_dpi_scaling(parent)
-
-        if parent_scale is None:
-            return
-
-        previous = ScalingTracker.window_dpi_scaling_dict.get(dialog)
-        if previous == parent_scale:
-            return
-
-        ScalingTracker.window_dpi_scaling_dict[dialog] = parent_scale
-        try:
-            dialog.block_update_dimensions_event()
-        except Exception:
-            pass
-        ScalingTracker.update_scaling_callbacks_for_window(dialog)
-    except Exception:
-        pass
-    finally:
-        try:
-            dialog.unblock_update_dimensions_event()
-        except Exception:
-            pass
-
-
 def _resolve_dialog_size(dialog):
     """Resolve a stable dialog size for centering and animation."""
     fixed_size = getattr(dialog, "_fixed_size", None)
@@ -164,16 +128,6 @@ def _apply_dialog_geometry(dialog, width, height, x, y):
     dialog.geometry(f"{width}x{height}+{x}+{y}")
 
 
-def _apply_dialog_size_keep_position(dialog, width, height):
-    """Force width/height while preserving current window position."""
-    try:
-        x = dialog.winfo_x()
-        y = dialog.winfo_y()
-    except Exception:
-        x, y = 0, 0
-    _apply_dialog_geometry(dialog, width, height, x, y)
-
-
 def _center_dialog_to_parent(dialog, parent, dialog_width=None, dialog_height=None):
     """Center a dialog relative to its parent window."""
     if dialog_width is None or dialog_height is None:
@@ -181,15 +135,6 @@ def _center_dialog_to_parent(dialog, parent, dialog_width=None, dialog_height=No
     x, y = _get_center_position(parent, dialog_width, dialog_height)
     _apply_dialog_geometry(dialog, dialog_width, dialog_height, x, y)
     return x, y
-
-
-def _dialog_is_visible(dialog):
-    if not dialog.winfo_exists():
-        return False
-    try:
-        return dialog.state() == "normal"
-    except Exception:
-        return False
 
 
 def _cancel_dialog_jobs(dialog):
@@ -208,141 +153,50 @@ def _register_dialog_job(dialog, job_id):
     dialog._show_anim_jobs.append(job_id)
 
 
-def _schedule_center_corrections(dialog, parent, width, height, delays_ms):
-    """Schedule one-shot geometry corrections to absorb async WM size adjustments."""
-    def _fix():
-        if not _dialog_is_visible(dialog):
-            return
-        _center_dialog_to_parent(dialog, parent, dialog_width=width, dialog_height=height)
-
-    for delay in delays_ms:
-        if delay <= 0:
-            job_id = dialog.after_idle(_fix)
-        else:
-            job_id = dialog.after(delay, _fix)
-        _register_dialog_job(dialog, job_id)
-
-
-def _start_transient_size_lock(dialog, width, height, duration_ms=220, interval_ms=16):
-    """Temporarily enforce dialog size to absorb async WM/CTk size rewrites."""
-    if duration_ms <= 0:
-        return
-
-    token = object()
-    dialog._size_lock_token = token
-    steps = max(1, int(duration_ms / max(1, interval_ms)))
-
-    def _tick(remaining):
-        if getattr(dialog, "_size_lock_token", None) is not token:
-            return
-        if not _dialog_is_visible(dialog):
-            return
-
-        _apply_dialog_size_keep_position(dialog, width, height)
-
-        if remaining > 0:
-            job_id = dialog.after(interval_ms, lambda: _tick(remaining - 1))
-            _register_dialog_job(dialog, job_id)
-
-    _tick(steps)
-
-
-def _ease_out_cubic(t):
-    return 1 - (1 - t) ** 3
-
-
-def _warm_dialog_offscreen_once(dialog):
-    """Warm first map/render cycle offscreen once to avoid startup and first-show flicker."""
-    if dialog is None or not dialog.winfo_exists():
-        return False
-    if getattr(dialog, "_is_warmed", False):
-        return False
-
-    original_state = None
-    try:
-        original_state = dialog.state()
-    except Exception:
-        pass
-    try:
-        original_alpha = dialog.attributes("-alpha")
-    except Exception:
-        original_alpha = 1.0
-
+def _show_dialog_atomically(dialog, parent, focus_widget=None):
+    """
+    Show dialog with immediate visual feedback:
+    - map window immediately in transparent state
+    - run short fade + slight upward motion
+    - keep fixed size and parent-centered position
+    """
     _cancel_dialog_jobs(dialog)
 
+    width, height = _resolve_dialog_size(dialog)
+    _prime_dialog_internal_size(dialog, width, height)
+
+    final_x, final_y = _get_center_position(parent, width, height)
+    start_y = final_y + 8
+
+    try:
+        dialog.configure(bg=COLOR_BG_PANEL)
+    except Exception:
+        pass
+
+    start_alpha = 0.08
+    alpha_supported = True
     try:
         dialog.attributes("-alpha", 0.0)
     except Exception:
-        pass
+        alpha_supported = False
 
-    width, height = _resolve_dialog_size(dialog)
-
+    _apply_dialog_geometry(dialog, width, height, final_x, start_y)
+    dialog.deiconify()
+    dialog.lift()
+    dialog.update_idletasks()
     try:
-        dialog.geometry(f"{width}x{height}+32000+32000")
-
-        dialog.deiconify()
-        parent = getattr(dialog, "master", None)
-        if parent is not None:
-            _sync_dialog_scaling_with_parent(dialog, parent)
-        dialog.update_idletasks()
-        try:
-            dialog.update()
-        except Exception:
-            pass
-        dialog.withdraw()
-    finally:
-        # Keep stable target size for the next visible show.
-        dialog.geometry(f"{width}x{height}")
-
-        try:
-            if original_state == "normal":
-                dialog.deiconify()
-            else:
-                dialog.withdraw()
-        except Exception:
-            pass
-
-        try:
-            dialog.attributes("-alpha", original_alpha)
-        except Exception:
-            try:
-                dialog.attributes("-alpha", 1.0)
-            except Exception:
-                pass
-
-        dialog._is_warmed = True
-        return True
-
-
-def _finalize_dialog_show(
-    dialog,
-    parent,
-    focus_widget=None,
-    final_geometry=None,
-    target_size=None,
-):
-    if not _dialog_is_visible(dialog):
-        return
-
-    if final_geometry is not None:
-        width, height, x, y = final_geometry
-        _apply_dialog_geometry(dialog, width, height, x, y)
-
-    # Ensure final position is centered even after animation timing/render jitter.
-    if target_size is not None:
-        _center_dialog_to_parent(
-            dialog,
-            parent,
-            dialog_width=target_size[0],
-            dialog_height=target_size[1],
-        )
-    else:
-        _center_dialog_to_parent(dialog, parent)
-
-    try:
-        dialog.attributes("-alpha", 1.0)
+        dialog.update()
     except Exception:
         pass
+
+    # Keep final target centered after map.
+    final_x, final_y = _get_center_position(parent, width, height)
+
+    if alpha_supported:
+        try:
+            dialog.attributes("-alpha", start_alpha)
+        except Exception:
+            pass
 
     dialog.grab_set()
     if focus_widget is not None:
@@ -350,141 +204,33 @@ def _finalize_dialog_show(
             focus_widget.focus_set()
         except Exception:
             pass
-    _cancel_dialog_jobs(dialog)
-    if target_size is not None:
-        _schedule_center_corrections(
-            dialog,
-            parent,
-            target_size[0],
-            target_size[1],
-            delays_ms=(0, 16),
-        )
 
+    steps = 8
+    duration_ms = 120
+    interval_ms = max(1, duration_ms // steps)
 
-def _show_dialog_atomically(
-    dialog,
-    parent,
-    focus_widget=None,
-    reveal_delay_ms=16,
-    anim_duration_ms=140,
-    anim_steps=10,
-    slide_offset_px=12,
-    _skip_warm=False,
-):
-    """Show dialog with a subtle fade+slide animation after first frame is ready."""
-    _cancel_dialog_jobs(dialog)
-    is_first_show = not getattr(dialog, "_first_show_done", False)
-    if not _skip_warm and _warm_dialog_offscreen_once(dialog):
-        # Let WM finish first-map bookkeeping before the first visible reveal.
-        job_id = dialog.after(
-            12,
-            lambda: _show_dialog_atomically(
-                dialog,
-                parent,
-                focus_widget=focus_widget,
-                reveal_delay_ms=reveal_delay_ms,
-                anim_duration_ms=anim_duration_ms,
-                anim_steps=anim_steps,
-                slide_offset_px=slide_offset_px,
-                _skip_warm=True,
-            ),
-        )
-        _register_dialog_job(dialog, job_id)
-        return
-
-    width, height = _resolve_dialog_size(dialog)
-    _prime_dialog_internal_size(dialog, width, height)
-    final_x, final_y = _get_center_position(parent, width, height)
-
-    try:
-        dialog.attributes("-alpha", 0.0)
-    except Exception:
-        pass
-
-    # Pre-center before mapping to avoid first-open jump from default WM position.
-    _apply_dialog_geometry(dialog, width, height, final_x, final_y)
-
-    dialog.deiconify()
-    dialog.lift()
-    _sync_dialog_scaling_with_parent(dialog, parent)
-    dialog.update_idletasks()
-    _apply_dialog_geometry(dialog, width, height, final_x, final_y)
-    dialog.update_idletasks()
-    try:
-        dialog.update()
-    except Exception:
-        pass
-
-    # Re-center once in transparent state after mapping to account for async WM corrections.
-    final_x, final_y = _center_dialog_to_parent(
-        dialog,
-        parent,
-        dialog_width=width,
-        dialog_height=height,
-    )
-    # First show gets a longer lock to absorb CTk delayed scaling callbacks.
-    _start_transient_size_lock(
-        dialog,
-        width,
-        height,
-        duration_ms=1400 if is_first_show else 260,
-        interval_ms=16,
-    )
-    _schedule_center_corrections(dialog, parent, width, height, delays_ms=(0, 8))
-
-    start_y = final_y + max(slide_offset_px, 0)
-    _apply_dialog_geometry(dialog, width, height, final_x, start_y)
-
-    def _run_animation():
-        if not _dialog_is_visible(dialog):
-            return
-
-        if anim_steps <= 1 or anim_duration_ms <= 0:
-            _finalize_dialog_show(
-                dialog,
-                parent=parent,
-                focus_widget=focus_widget,
-                final_geometry=(width, height, final_x, final_y),
-                target_size=(width, height),
-            )
-            dialog._first_show_done = True
-            return
-
-        interval_ms = max(1, int(anim_duration_ms / anim_steps))
-
-        for step in range(1, anim_steps + 1):
-            def _tick(s=step):
-                if not _dialog_is_visible(dialog):
-                    return
-
-                progress = s / anim_steps
-                eased = _ease_out_cubic(progress)
-                current_y = final_y + round((1 - eased) * (start_y - final_y))
-
+    for step in range(1, steps + 1):
+        def _tick(s=step):
+            progress = s / steps
+            current_y = final_y + round((1 - progress) * (start_y - final_y))
+            _apply_dialog_geometry(dialog, width, height, final_x, current_y)
+            if alpha_supported:
+                alpha = start_alpha + (1.0 - start_alpha) * progress
                 try:
-                    dialog.attributes("-alpha", eased)
+                    dialog.attributes("-alpha", alpha)
                 except Exception:
                     pass
-                _apply_dialog_geometry(dialog, width, height, final_x, current_y)
 
-                if s == anim_steps:
-                    _finalize_dialog_show(
-                        dialog,
-                        parent=parent,
-                        focus_widget=focus_widget,
-                        final_geometry=(width, height, final_x, final_y),
-                        target_size=(width, height),
-                    )
-                    dialog._first_show_done = True
+            if s == steps:
+                _apply_dialog_geometry(dialog, width, height, final_x, final_y)
+                if alpha_supported:
+                    try:
+                        dialog.attributes("-alpha", 1.0)
+                    except Exception:
+                        pass
 
-            job_id = dialog.after(step * interval_ms, _tick)
-            _register_dialog_job(dialog, job_id)
-
-    if reveal_delay_ms > 0:
-        job_id = dialog.after(reveal_delay_ms, _run_animation)
+        job_id = dialog.after(step * interval_ms, _tick)
         _register_dialog_job(dialog, job_id)
-    else:
-        _run_animation()
 
 class SaveGroupDialog:
     def __init__(self, parent, on_confirm=None):
@@ -556,6 +302,9 @@ class SaveGroupDialog:
 
         self.entry.bind("<Return>", lambda e: self._on_save())
 
+    def prepare(self):
+        self._build_if_needed()
+
     def show(self, on_confirm=None):
         if on_confirm is not None:
             self.on_confirm = on_confirm
@@ -568,7 +317,6 @@ class SaveGroupDialog:
     def _hide(self):
         if self.dialog and self.dialog.winfo_exists():
             _cancel_dialog_jobs(self.dialog)
-            self.dialog._size_lock_token = None
             try:
                 self.dialog.attributes("-alpha", 1.0)
             except Exception:
@@ -645,6 +393,9 @@ class DeleteConfirmDialog:
             command=self._on_delete,
         ).pack(side="left", padx=10)
 
+    def prepare(self):
+        self._build_if_needed()
+
     def show(self, group_name=None, on_confirm=None):
         if group_name is not None:
             self.group_name = group_name
@@ -659,7 +410,6 @@ class DeleteConfirmDialog:
     def _hide(self):
         if self.dialog and self.dialog.winfo_exists():
             _cancel_dialog_jobs(self.dialog)
-            self.dialog._size_lock_token = None
             try:
                 self.dialog.attributes("-alpha", 1.0)
             except Exception:
@@ -690,6 +440,9 @@ class EditGroupDialog:
         self.title_label = None
         self.file_list_frame = None
         self.file_checkboxes = []
+        self.checkbox_pool = []
+        self.empty_tip_label = None
+        self._pool_warmed = False
 
         self.ui_icons = {
             "add_files": get_ui_icon("select-files", 16),
@@ -743,6 +496,12 @@ class EditGroupDialog:
             fg_color=COLOR_BG_FILE_LIST,
         )
         self.file_list_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        self.empty_tip_label = ctk.CTkLabel(
+            self.file_list_frame,
+            text="暂无文件，请点击「添加文件」。",
+            font=Fonts.small(),
+            text_color=COLOR_TEXT_MUTED,
+        )
 
         btn_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
         btn_frame.pack(pady=(10, 20))
@@ -791,6 +550,37 @@ class EditGroupDialog:
         )
         save_btn.grid(row=0, column=2, padx=10)
 
+    def _ensure_checkbox_pool_size(self, target_size):
+        if not self.file_list_frame:
+            return
+
+        while len(self.checkbox_pool) < target_size:
+            checkbox = ctk.CTkCheckBox(
+                self.file_list_frame,
+                font=Fonts.small(),
+                text_color=COLOR_TEXT_PRIMARY,
+                hover_color=COLOR_PRIMARY,
+                fg_color=COLOR_PRIMARY,
+                border_color=COLOR_BORDER,
+                checkbox_width=18,
+                checkbox_height=18,
+            )
+            checkbox.configure(text="")
+            checkbox.deselect()
+            checkbox.pack_forget()
+            self.checkbox_pool.append(checkbox)
+
+    def prepare(self):
+        self._build_if_needed()
+        if not self._pool_warmed:
+            # Pre-create checkbox widgets in hidden state to smooth first visible open.
+            self._ensure_checkbox_pool_size(24)
+            try:
+                self.dialog.update_idletasks()
+            except Exception:
+                pass
+            self._pool_warmed = True
+
     def show(self, group_name=None, current_files=None, on_save=None):
         if group_name is not None:
             self.group_name = group_name
@@ -809,8 +599,10 @@ class EditGroupDialog:
 
     def _clear_file_list_widgets(self):
         self.file_checkboxes = []
-        for widget in self.file_list_frame.winfo_children():
-            widget.destroy()
+        if self.empty_tip_label is not None:
+            self.empty_tip_label.pack_forget()
+        for checkbox in self.checkbox_pool:
+            checkbox.pack_forget()
 
     def _render_file_list(self):
         if not self.file_list_frame:
@@ -819,12 +611,8 @@ class EditGroupDialog:
         self._clear_file_list_widgets()
 
         if not self.files:
-            ctk.CTkLabel(
-                self.file_list_frame,
-                text="暂无文件，请点击「添加文件」。",
-                font=Fonts.small(),
-                text_color=COLOR_TEXT_MUTED,
-            ).pack(pady=20)
+            if self.empty_tip_label is not None:
+                self.empty_tip_label.pack(pady=20)
             return
 
         for idx, file_path in enumerate(self.files):
@@ -832,17 +620,12 @@ class EditGroupDialog:
             exists = os.path.exists(file_path)
             icon = TEXT_CHECK_EXISTS if exists else TEXT_CHECK_MISSING
 
-            checkbox = ctk.CTkCheckBox(
-                self.file_list_frame,
-                text=f"{icon} {file_name}",
-                font=Fonts.small(),
-                text_color=COLOR_TEXT_PRIMARY,
-                hover_color=COLOR_PRIMARY,
-                fg_color=COLOR_PRIMARY,
-                border_color=COLOR_BORDER,
-                checkbox_width=18,
-                checkbox_height=18,
-            )
+            if idx >= len(self.checkbox_pool):
+                self._ensure_checkbox_pool_size(idx + 1)
+            checkbox = self.checkbox_pool[idx]
+
+            checkbox.configure(text=f"{icon} {file_name}")
+            checkbox.deselect()
             checkbox.pack(fill="x", padx=5, pady=2)
             checkbox.file_index = idx
             self.file_checkboxes.append(checkbox)
@@ -883,7 +666,6 @@ class EditGroupDialog:
     def _hide(self):
         if self.dialog and self.dialog.winfo_exists():
             _cancel_dialog_jobs(self.dialog)
-            self.dialog._size_lock_token = None
             try:
                 self.dialog.attributes("-alpha", 1.0)
             except Exception:

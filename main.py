@@ -11,6 +11,9 @@ from ctypes import windll
 import customtkinter as ctk
 from tkinterdnd2 import TkinterDnD
 
+# Avoid first-open DPI re-scaling flicker on Windows.
+ctk.deactivate_automatic_dpi_awareness()
+
 # 导入配置
 from src.defines import (
     WINDOW_TITLE,
@@ -111,6 +114,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
             on_files_dropped=self._on_files_dropped,
         )
         self.drag_drop.setup()
+        self._prepare_dialogs()
     
     def _setup_window(self):
         """
@@ -170,6 +174,14 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         # 更新文件组显示
         self._update_groups_panel()
         self._update_file_list()
+
+    def _prepare_dialogs(self):
+        """Pre-create dialog widget trees to reduce first-open lag."""
+        for dialog in (self.save_group_dialog, self.edit_group_dialog, self.delete_group_dialog):
+            try:
+                dialog.prepare()
+            except Exception as e:
+                print(f"弹窗预创建失败: {e}")
 
     def _load_icons(self):
         """Load shared icons for toolbar buttons."""
