@@ -11,6 +11,37 @@ from tkinter import filedialog
 from ..defines import FILE_DIALOG_TITLE, FILE_TYPES
 
 
+def _normalize_file_identity(file_path):
+    """Normalize path for duplicate detection on current OS."""
+    if not file_path:
+        return ""
+    return os.path.normcase(os.path.normpath(os.path.abspath(file_path)))
+
+
+def _is_windows_uac_related_error(error):
+    """
+    Detect Windows elevation/cancel errors that should not be retried.
+
+    Common winerror values:
+    - 1223: The operation was canceled by the user (clicked "No" on UAC)
+    - 740: The requested operation requires elevation
+    - 5: Access is denied
+    """
+    if os.name != "nt":
+        return False
+
+    winerror = getattr(error, "winerror", None)
+    if winerror in (1223, 740, 5):
+        return True
+
+    message = str(error).lower()
+    return (
+        "operation was canceled by the user" in message
+        or "被用户取消" in message
+        or "requires elevation" in message
+    )
+
+
 def open_single_file(file_path):
     """
     打开单个文件
@@ -31,6 +62,9 @@ def open_single_file(file_path):
         return True
     except Exception as e:
         print(f"os.startfile 失败: {e}")
+        if _is_windows_uac_related_error(e):
+            # User denied UAC or target requires elevation; do not retry to avoid double prompt.
+            return False
         try:
             subprocess.Popen(["cmd", "/c", "start", "", file_path])
             return True
@@ -51,8 +85,14 @@ def open_files(file_list):
     """
     success_count = 0
     failed_files = []
-    
+    seen = set()
+
     for file_path in file_list:
+        identity = _normalize_file_identity(file_path)
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+
         if os.path.exists(file_path):
             if open_single_file(file_path):
                 success_count += 1

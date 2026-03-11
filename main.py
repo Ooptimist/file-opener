@@ -565,8 +565,24 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         """
         if not self.selected_files:
             return
-        
-        success_count, failed_files = open_files(self.selected_files)
+
+        files_to_open = []
+        checked_indices = []
+        for checkbox in self.file_checkboxes:
+            if checkbox.is_checked():
+                checked_indices.append(checkbox.file_index)
+
+        if checked_indices:
+            for idx in checked_indices:
+                if 0 <= idx < len(self.selected_files):
+                    files_to_open.append(self.selected_files[idx])
+        else:
+            files_to_open = list(self.selected_files)
+
+        if not files_to_open:
+            return
+
+        success_count, failed_files = open_files(files_to_open)
         if failed_files:
             print(f"成功打开 {success_count} 个文件，{len(failed_files)} 个文件失败")
     
