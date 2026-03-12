@@ -197,6 +197,9 @@ class FileCheckbox:
         """
         self.file_path = file_path
         self.file_index = 0  # 需要在创建后设置
+        self.path_visible = False
+        self._hover_job = None
+        self._watchdog_job = None
 
         file_name = os.path.basename(file_path)
 
@@ -224,6 +227,18 @@ class FileCheckbox:
         )
         self.checkbox.pack(side="left", fill="x", expand=True, padx=10, pady=7)
 
+        # 悬停时显示完整路径（更淡文本）
+        self.path_label = ctk.CTkLabel(
+            self.row,
+            text=self.file_path,
+            font=Fonts.small(),
+            text_color=COLOR_TEXT_MUTED,
+            anchor="w",
+            justify="left",
+        )
+        self.path_label.bind("<Enter>", self._on_hover, add="+")
+        self.path_label.bind("<Button-1>", self._on_row_click, add="+")
+
         self.row.bind("<Enter>", self._on_hover)
         self.row.bind("<Leave>", self._on_leave)
         self.row.bind("<Button-1>", self._on_row_click)
@@ -234,22 +249,91 @@ class FileCheckbox:
 
         if bg_canvas is not None:
             bg_canvas.bind("<Enter>", self._on_hover, add="+")
-            bg_canvas.bind("<Leave>", self._on_leave, add="+")
             bg_canvas.bind("<Button-1>", self._on_row_click, add="+")
 
         if box_canvas is not None:
             box_canvas.bind("<Enter>", self._on_hover, add="+")
-            box_canvas.bind("<Leave>", self._on_leave, add="+")
 
         if text_label is not None:
             text_label.bind("<Enter>", self._on_hover, add="+")
-            text_label.bind("<Leave>", self._on_leave, add="+")
+            text_label.bind("<Button-1>", self._on_row_click, add="+")
+
+    def _is_pointer_within_row(self):
+        try:
+            x, y = self.row.winfo_pointerxy()
+            widget = self.row.winfo_containing(x, y)
+        except Exception:
+            return False
+
+        while widget is not None:
+            if widget == self.row:
+                return True
+            widget = widget.master
+        return False
+
+    def _show_path(self):
+        if self.path_visible:
+            return
+        self.path_label.pack(fill="x", padx=14, pady=(4, 4))
+        self.path_visible = True
+        self._start_watchdog()
+
+    def _hide_path(self):
+        if not self.path_visible:
+            return
+        self.path_label.pack_forget()
+        self.path_visible = False
+        self._stop_watchdog()
+
+    def _start_watchdog(self):
+        if self._watchdog_job is not None:
+            return
+
+        def _tick():
+            self._watchdog_job = None
+            if not self.path_visible:
+                return
+            if not self._is_pointer_within_row():
+                self.row.configure(fg_color=COLOR_BG_FILE_ITEM)
+                self._hide_path()
+                return
+            self._watchdog_job = self.row.after(40, _tick)
+
+        self._watchdog_job = self.row.after(40, _tick)
+
+    def _stop_watchdog(self):
+        if self._watchdog_job is None:
+            return
+        try:
+            self.row.after_cancel(self._watchdog_job)
+        except Exception:
+            pass
+        self._watchdog_job = None
 
     def _on_hover(self, _event):
+        if self._hover_job is not None:
+            try:
+                self.row.after_cancel(self._hover_job)
+            except Exception:
+                pass
+            self._hover_job = None
         self.row.configure(fg_color=COLOR_BG_FILE_ITEM_HOVER)
+        self._show_path()
 
     def _on_leave(self, _event):
-        self.row.configure(fg_color=COLOR_BG_FILE_ITEM)
+        def _hide_if_outside():
+            self._hover_job = None
+            if self._is_pointer_within_row():
+                return
+            self.row.configure(fg_color=COLOR_BG_FILE_ITEM)
+            self._hide_path()
+
+        if self._hover_job is not None:
+            try:
+                self.row.after_cancel(self._hover_job)
+            except Exception:
+                pass
+        self._hover_job = self.row.after(20, _hide_if_outside)
 
     def _on_row_click(self, _event):
         """Toggle checkbox when clicking anywhere in row."""
@@ -271,6 +355,12 @@ class FileCheckbox:
         """
         销毁组件
         """
+        if self._hover_job is not None:
+            try:
+                self.row.after_cancel(self._hover_job)
+            except Exception:
+                pass
+        self._stop_watchdog()
         self.row.destroy()
 
 
