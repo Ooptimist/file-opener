@@ -153,6 +153,39 @@ def _register_dialog_job(dialog, job_id):
     dialog._show_anim_jobs.append(job_id)
 
 
+def _prime_dialog_first_map(dialog):
+    """Prime first map cycle off-screen once to avoid first-show jump from default WM position."""
+    if dialog is None or not dialog.winfo_exists():
+        return
+    if getattr(dialog, "_first_map_ready", False):
+        return
+
+    width, height = _resolve_dialog_size(dialog)
+    alpha_supported = True
+    try:
+        dialog.attributes("-alpha", 0.0)
+    except Exception:
+        alpha_supported = False
+
+    try:
+        dialog.geometry(f"{width}x{height}+32000+32000")
+        dialog.deiconify()
+        dialog.update_idletasks()
+        try:
+            dialog.update()
+        except Exception:
+            pass
+        dialog.withdraw()
+    finally:
+        dialog.geometry(f"{width}x{height}")
+        if alpha_supported:
+            try:
+                dialog.attributes("-alpha", 1.0)
+            except Exception:
+                pass
+        dialog._first_map_ready = True
+
+
 def _show_dialog_atomically(dialog, parent, focus_widget=None):
     """
     Show dialog with immediate visual feedback:
@@ -161,6 +194,7 @@ def _show_dialog_atomically(dialog, parent, focus_widget=None):
     - keep fixed size and parent-centered position
     """
     _cancel_dialog_jobs(dialog)
+    _prime_dialog_first_map(dialog)
 
     width, height = _resolve_dialog_size(dialog)
     _prime_dialog_internal_size(dialog, width, height)
@@ -304,6 +338,7 @@ class SaveGroupDialog:
 
     def prepare(self):
         self._build_if_needed()
+        _prime_dialog_first_map(self.dialog)
 
     def show(self, on_confirm=None):
         if on_confirm is not None:
@@ -395,6 +430,7 @@ class DeleteConfirmDialog:
 
     def prepare(self):
         self._build_if_needed()
+        _prime_dialog_first_map(self.dialog)
 
     def show(self, group_name=None, on_confirm=None):
         if group_name is not None:
@@ -572,6 +608,7 @@ class EditGroupDialog:
 
     def prepare(self):
         self._build_if_needed()
+        _prime_dialog_first_map(self.dialog)
         if not self._pool_warmed:
             # Pre-create checkbox widgets in hidden state to smooth first visible open.
             self._ensure_checkbox_pool_size(24)

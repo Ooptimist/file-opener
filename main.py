@@ -85,6 +85,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         """
         super().__init__()
         TkinterDnD._require(self)
+        self.withdraw()
         
         # 配置窗口基本属性
         self._setup_window()
@@ -118,6 +119,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         )
         self.drag_drop.setup()
         self._prepare_dialogs()
+        self.after_idle(self._reveal_startup_window)
     
     def _setup_window(self):
         """
@@ -141,6 +143,28 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         
         # 设置窗口图标
         self._setup_icon()
+
+    def _reveal_startup_window(self):
+        """Reveal app window at screen center after startup initialization."""
+        try:
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
+            target_x = max((screen_w - WINDOW_WIDTH) // 2, 0)
+            target_y = max((screen_h - WINDOW_HEIGHT) // 2, 0)
+            self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}+{target_x}+{target_y}")
+            self.lift()
+            try:
+                self.attributes("-alpha", 1.0)
+            except Exception:
+                pass
+            self.deiconify()
+            self.after(20, self.lift)
+        except Exception:
+            # Ensure window does not stay hidden if reveal pipeline fails.
+            try:
+                self.deiconify()
+            except Exception:
+                pass
     
     def _setup_icon(self):
         """
