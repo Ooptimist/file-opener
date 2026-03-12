@@ -249,14 +249,12 @@ class FileCheckbox:
 
         if bg_canvas is not None:
             bg_canvas.bind("<Enter>", self._on_hover, add="+")
-            bg_canvas.bind("<Button-1>", self._on_row_click, add="+")
 
         if box_canvas is not None:
             box_canvas.bind("<Enter>", self._on_hover, add="+")
 
         if text_label is not None:
             text_label.bind("<Enter>", self._on_hover, add="+")
-            text_label.bind("<Button-1>", self._on_row_click, add="+")
 
     def _is_pointer_within_row(self):
         try:
@@ -513,6 +511,52 @@ class GroupWidget:
             icon_img = self.collapse_icon_img if expanded else self.expand_icon_img
             fallback_text = TEXT_COLLAPSE_ICON if expanded else TEXT_EXPAND_ICON
             self.expand_btn.configure(image=icon_img, text="" if icon_img else fallback_text)
+
+    def _bind_group_file_hover(self, row_frame, name_label, path_label, path_text):
+        """Show path text on hover without flicker when moving across child widgets."""
+        hover_state = {"hide_job": None}
+
+        def _is_pointer_within_row():
+            try:
+                x, y = row_frame.winfo_pointerxy()
+                widget = row_frame.winfo_containing(x, y)
+            except Exception:
+                return False
+
+            while widget is not None:
+                if widget == row_frame:
+                    return True
+                widget = widget.master
+            return False
+
+        def _show_path(_event=None):
+            hide_job = hover_state["hide_job"]
+            if hide_job is not None:
+                try:
+                    row_frame.after_cancel(hide_job)
+                except Exception:
+                    pass
+                hover_state["hide_job"] = None
+            path_label.configure(text=path_text)
+
+        def _hide_path(_event=None):
+            def _hide_if_outside():
+                hover_state["hide_job"] = None
+                if _is_pointer_within_row():
+                    return
+                path_label.configure(text="")
+
+            hide_job = hover_state["hide_job"]
+            if hide_job is not None:
+                try:
+                    row_frame.after_cancel(hide_job)
+                except Exception:
+                    pass
+            hover_state["hide_job"] = row_frame.after(25, _hide_if_outside)
+
+        for widget in (row_frame, name_label, path_label):
+            widget.bind("<Enter>", _show_path, add="+")
+            widget.bind("<Leave>", _hide_path, add="+")
     
     def create_files_frame(self, files):
         """
@@ -538,14 +582,34 @@ class GroupWidget:
         for file_path in files:
             file_name = os.path.basename(file_path)
             exists_icon = TEXT_CHECK_EXISTS if os.path.exists(file_path) else TEXT_CHECK_MISSING
-            file_label = ctk.CTkLabel(
-                self.files_frame,
+            row_frame = ctk.CTkFrame(self.files_frame, fg_color="transparent")
+            row_frame.pack(fill="x", padx=8, pady=2)
+
+            name_label = ctk.CTkLabel(
+                row_frame,
                 text=f"{exists_icon} {file_name}",
                 font=Fonts.group_file(),
                 text_color=COLOR_TEXT_SECONDARY,
-                anchor="w"
+                anchor="w",
             )
-            file_label.pack(fill="x", padx=8, pady=2)
+            name_label.pack(side="left")
+
+            path_label = ctk.CTkLabel(
+                row_frame,
+                text="",
+                font=Fonts.group_file(),
+                text_color=COLOR_TEXT_MUTED,
+                anchor="w",
+                justify="left",
+            )
+            path_label.pack(side="left", fill="x", expand=True)
+
+            self._bind_group_file_hover(
+                row_frame=row_frame,
+                name_label=name_label,
+                path_label=path_label,
+                path_text=f"    {file_path}",
+            )
         
         return self.files_frame
     
