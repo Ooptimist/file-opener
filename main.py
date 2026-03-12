@@ -664,6 +664,7 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
         for idx, (group_name, files) in enumerate(groups.items()):
             files_snapshot = tuple(files)
             cached_snapshot = self.group_file_snapshots.get(group_name)
+            snapshot_changed = cached_snapshot != files_snapshot
             if cached_snapshot != files_snapshot:
                 valid_count, total_count = count_existing_files(files)
                 self.group_file_snapshots[group_name] = files_snapshot
@@ -680,7 +681,9 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
                 widget.set_expand_icon(group_name in self.expanded_groups)
 
                 if group_name in self.expanded_groups:
-                    widget.create_files_frame(files)
+                    # Avoid rebuilding expanded file list on unrelated updates.
+                    if snapshot_changed or widget.files_frame is None:
+                        widget.create_files_frame(files)
                     widget.show_files()
                 else:
                     widget.hide_files()
