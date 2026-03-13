@@ -237,7 +237,7 @@ class FileCheckbox:
             justify="left",
         )
         self.path_label.bind("<Enter>", self._on_hover, add="+")
-        self.path_label.bind("<Button-1>", self._on_row_click, add="+")
+        self.path_label.bind("<Button-1>", self._on_row_click)
 
         self.row.bind("<Enter>", self._on_hover)
         self.row.bind("<Leave>", self._on_leave)
@@ -249,12 +249,17 @@ class FileCheckbox:
 
         if bg_canvas is not None:
             bg_canvas.bind("<Enter>", self._on_hover, add="+")
+            bg_canvas.bind("<Button-1>", self._on_row_click)
 
         if box_canvas is not None:
             box_canvas.bind("<Enter>", self._on_hover, add="+")
+            box_canvas.bind("<Button-1>", self._on_row_click)
 
         if text_label is not None:
             text_label.bind("<Enter>", self._on_hover, add="+")
+            text_label.bind("<Button-1>", self._on_row_click)
+
+        self.checkbox.bind("<Button-1>", self._on_row_click)
 
     def _is_pointer_within_row(self):
         try:
@@ -339,6 +344,7 @@ class FileCheckbox:
             self.checkbox.deselect()
         else:
             self.checkbox.select()
+        return "break"
     
     def is_checked(self):
         """
