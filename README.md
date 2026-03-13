@@ -1,171 +1,119 @@
-# 📁 文件批量打开工具
+# 文件批量打开工具（FileOpener）
 
-## 核心功能
+一个面向 Windows 的桌面工具，用于集中管理常用文件并进行批量打开。
 
-**1. 批量打开文件**
+## 功能概览
 
-- 一次选择多个文件，一键全部打开
-- 自动识别文件类型并显示对应图标
+### 1. 当前文件列表
+- 支持通过「选择文件」一次性添加多个文件。
+- 支持将文件直接拖拽到当前文件列表区域。
+- 列表项整行可点击勾选（不只文件名区域）。
+- 鼠标悬停文件项时显示完整路径。
+- 支持批量移除已勾选文件。
+- 支持批量打开文件：
+  - 勾选了文件时，仅打开勾选项。
+  - 未勾选时，默认打开当前列表全部文件。
+- 自动按扩展名显示文件图标（未知类型显示默认图标）。
 
-**2. 文件组管理**
+### 2. 文件组管理
+- 可将当前文件列表保存为文件组。
+- 文件组数据自动持久化，重启后仍保留。
+- 每个文件组显示「存在文件数 / 总文件数」。
+- 文件组支持展开/折叠查看明细。
+- 展开后可查看组内每个文件状态（存在/丢失标记）。
+- 展开项支持悬停显示完整路径（文件名保持原色，路径为弱化色）。
+- 每个文件组支持：打开、编辑、删除。
 
-- 将常用文件保存为分组（如"工作文档"、"项目资料"）
-- 一键打开整个文件组
-- 文件存在状态实时检测（✅存在/❌丢失）
+### 3. 编辑/确认弹窗
+- 包含保存分组、删除确认、编辑分组三个弹窗。
+- 弹窗相对主窗口居中显示。
+- 弹窗采用平滑显现流程，减少首开闪烁与突兀感。
+- 编辑弹窗支持：添加文件、勾选删除、保存。
+- 系统文件选择框会绑定当前窗口/弹窗作为 parent，位置更稳定。
 
-**3. 快捷操作**
-- 勾选文件批量移除
-- 展开文件组查看详细列表
-- 数据自动保存，重启软件不丢失
+### 4. 图标与视觉
+- 主窗口与弹窗均使用项目图标（非 Python 默认图标）。
+- 按钮使用本地图标资源（`src/assets/icons/fluent/`）。
+- 界面采用统一深色风格设计 token（颜色、圆角、间距、字体）。
 
----
+## 技术栈
+- Python 3.11+
+- CustomTkinter
+- tkinterdnd2
+- Pillow
+- PyInstaller（打包时）
 
-## 界面布局
+## 快速开始（开发环境）
 
-| 左侧：文件选择 | 右侧：文件组管理 |
-|--------------|----------------|
-| 📝 选择文件 | 📂 我的文件组 |
-| 💾 保存文件组 | ▶ 展开/折叠列表 |
-| 文件列表（带复选框）| 打开/编辑/删除按钮 |
-| 🗑️ 移除 🚀 打开 | 文件计数（3/5） |
-
----
-
-## 使用步骤
-
-### 添加文件
-点击"📝 选择文件"，多选后确认  
-
-### 打开文件
-- 点击"🚀 打开"：打开左侧所有文件
-- 点击文件组"打开"按钮：打开该组所有文件
-
-### 保存文件组
-1. 左侧添加需要的文件
-2. 点击"💾 保存文件组"
-3. 输入组名（如"日常工作"）
-
-### 管理文件组
-- **展开**：点击 ▶ 查看组内文件
-- **编辑**：点击"编辑"按钮添加/删除文件
-- **删除**：点击"删除"按钮移除整个组（不删除实际文件）
-- **检测**：❌ 标记表示文件已被移动或删除
-
-### 编辑文件组
-1. 点击文件组的"编辑"按钮
-2. 在弹出的对话框中：
-   - 点击"添加文件"添加新文件到组
-   - 勾选文件后点击"删除选中"移除文件
-3. 点击"保存"确认更改
-
----
-
-## 打包为 EXE（可选）
-
-如果你想自己打包为可执行文件：
-
-### 方法一：一键打包（推荐）
-
-1. 双击运行 `build.bat`
-2. 等待打包完成
-3. 打包好的 `FileOpener.exe` 在 `dist` 文件夹中
-
-### 方法二：手动打包
-
+### 1. 安装依赖
 ```bash
-# 安装 PyInstaller
-pip install pyinstaller
-
-# 执行打包
-pyinstaller FileOpener.spec
-
-# 输出文件在 dist/FileOpener.exe
+pip install customtkinter tkinterdnd2 pillow pyinstaller
 ```
 
----
-
-## 项目结构
-
-```
-autoopen/
-├── main.py                 # 主程序入口
-├── build.bat              # 一键打包脚本
-├── FileOpener.spec        # PyInstaller配置
-├── icon.ico               # 程序图标
-├── file_groups.json       # 数据文件（自动生成）
-├── README.md              # 本文件
-│
-├── src/                   # 源代码目录
-│   ├── __init__.py
-│   ├── defines.py         # 配置文件（字体、颜色、常量）
-│   └── utils.py           # 工具函数
-│   │
-│   ├── handlers/          # 业务处理模块
-│   │   ├── __init__.py
-│   │   ├── file_handler.py    # 文件操作
-│   │   ├── drag_drop.py       # 拖拽功能
-│   │   └── group_manager.py   # 文件组管理
-│   │
-│   └── ui/                # UI组件模块
-│       ├── __init__.py
-│       ├── dialogs.py         # 对话框
-│       └── ui_components.py   # UI组件
-│
-└── dist/                  # 打包输出目录（自动生成）
-    └── FileOpener.exe     # 可执行文件
-```
-
----
-
-## 自定义配置
-
-如需修改界面样式，请编辑 `src/defines.py`：
-
-```python
-# 修改窗口大小
-WINDOW_WIDTH = 1600
-WINDOW_HEIGHT = 1000
-
-# 修改主题颜色
-THEME_COLOR = "blue"  # blue, green, dark-blue
-
-# 修改按钮颜色
-COLOR_PRIMARY = "#3498db"      # 蓝色
-COLOR_SUCCESS = "#27ae60"      # 绿色
-COLOR_DANGER = "#e74c3c"       # 红色
-
-# 修改字体大小
-FONT_SIZE_TITLE = 22
-FONT_SIZE_NORMAL = 13
-```
-
----
-
-## 开发说明
-
-### 运行程序
-
+### 2. 运行程序
 ```bash
 python main.py
 ```
 
-### 目录说明
+## 打包 EXE
 
-- `src/` - 所有源代码
-  - `handlers/` - 业务逻辑（文件操作、拖拽、文件组管理）
-  - `ui/` - 界面组件（对话框、按钮组件）
-- `main.py` - 入口文件，负责整合所有模块
+### 推荐方式
+```bash
+build.bat
+```
 
-### 添加新功能
+### 手动方式
+```bash
+python -m PyInstaller --clean --noconfirm FileOpener.spec
+```
 
-1. 业务逻辑 → 添加到 `src/handlers/`
-2. UI组件 → 添加到 `src/ui/`
-3. 在 `main.py` 中导入并使用
+输出文件：`dist/FileOpener.exe`
 
----
+## 数据与资源说明
+- 文件组数据：`file_groups.json`
+  - 开发模式：位于 `src/file_groups.json`
+  - 打包运行：位于 EXE 同目录
+- 程序图标：`icon.ico`
+- 按钮图标资源：`src/assets/icons/fluent/`
+- 图标许可说明：`src/assets/icons/ATTRIBUTION.md`
 
-## 数据说明
+## 项目结构（核心）
 
-- 文件组保存在软件目录的 `file_groups.json` 中
-- 删除该文件会清空所有分组数据
-- 支持 Windows 10/11
+```text
+autoopen/
+├─ main.py
+├─ build.bat
+├─ FileOpener.spec
+├─ icon.ico
+├─ README.md
+└─ src/
+   ├─ defines.py
+   ├─ utils.py
+   ├─ file_groups.json
+   ├─ assets/
+   │  └─ icons/
+   │     ├─ ATTRIBUTION.md
+   │     └─ fluent/
+   ├─ handlers/
+   │  ├─ file_handler.py
+   │  ├─ group_manager.py
+   │  ├─ tkdnd_drop_zone.py
+   │  └─ drag_drop.py
+   └─ ui/
+      ├─ dialogs.py
+      └─ ui_components.py
+```
+
+## 常见问题
+
+### 1. 运行 EXE 报错 `ModuleNotFoundError: No module named 'tkinter'`
+当前 Python 环境缺少 Tcl/Tk 组件。请重装 Python 并确保安装 Tcl/Tk（Windows 安装器默认可勾选）。
+
+### 2. 打包时报 EXE 被占用
+请先关闭正在运行的 `FileOpener.exe`，再执行 `build.bat`。
+
+### 3. 打开文件出现 UAC 提示
+若用户在 UAC 中选择“否”，程序会将该文件记为失败项，不会重复弹同一文件的二次提示。
+
+## 适用平台
+- Windows 10 / 11
