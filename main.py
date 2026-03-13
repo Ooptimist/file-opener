@@ -178,6 +178,10 @@ class FileOpenerApp(TkinterDnD.DnDWrapper, ctk.CTk):
             icon_path = get_icon_path()
             if os.path.exists(icon_path):
                 self.iconbitmap(icon_path)
+                try:
+                    self.iconbitmap(default=icon_path)
+                except Exception:
+                    pass
                 print(f"图标已加载: {icon_path}")
             else:
                 print(f"图标文件不存在: {icon_path}")

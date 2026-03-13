@@ -43,6 +43,7 @@ from ..defines import (
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_MUTED,
     CORNER_RADIUS_NORMAL,
+    get_icon_path,
 )
 from ..utils import Fonts, get_ui_icon
 
@@ -62,6 +63,28 @@ class StableDialogToplevel(tk.Toplevel):
 
     def unblock_update_dimensions_event(self):
         self._block_update_dimensions_event = False
+
+
+def _apply_window_icon(window):
+    """Best-effort icon assignment for tkinter windows on Windows."""
+    try:
+        icon_path = get_icon_path()
+        if not os.path.exists(icon_path):
+            return
+
+        # Assign as current icon.
+        try:
+            window.iconbitmap(icon_path)
+        except Exception:
+            pass
+
+        # Assign as class default icon (helps some Toplevel scenarios).
+        try:
+            window.iconbitmap(default=icon_path)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def _set_windows_dark_title_bar(dialog):
@@ -89,6 +112,8 @@ def _configure_dialog_window(dialog):
         dialog.configure(bg=COLOR_BG_PANEL)
     except Exception:
         pass
+    _apply_window_icon(dialog)
+    dialog.after(0, lambda d=dialog: _apply_window_icon(d))
     dialog.after_idle(lambda d=dialog: _set_windows_dark_title_bar(d))
 
 

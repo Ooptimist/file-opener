@@ -228,7 +228,28 @@ def get_icon_path():
     Returns:
         str: 图标文件路径
     """
-    return os.path.join(get_app_dir(), ICON_FILE_NAME)
+    app_dir = get_app_dir()
+    candidates = [os.path.join(app_dir, ICON_FILE_NAME)]
+
+    # Development mode: defines.py sits in `src`, while icon.ico is at project root.
+    if not getattr(sys, "frozen", False):
+        project_root = os.path.dirname(app_dir)
+        candidates.append(os.path.join(project_root, ICON_FILE_NAME))
+    else:
+        # One-file mode fallback.
+        meipass_dir = getattr(sys, "_MEIPASS", None)
+        if meipass_dir:
+            candidates.append(os.path.join(meipass_dir, ICON_FILE_NAME))
+
+    # Additional cwd fallback to tolerate varied launch paths.
+    candidates.append(os.path.join(os.getcwd(), ICON_FILE_NAME))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # Keep backward-compatible return behavior if icon is absent.
+    return candidates[0]
 
 
 def get_groups_file_path():
