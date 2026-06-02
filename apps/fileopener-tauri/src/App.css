@@ -1,5 +1,8 @@
 ﻿:root {
   --app-bg: #151515;
+  --app-wash-a: #21303d;
+  --app-wash-b: #2b2522;
+  --header-bg: linear-gradient(135deg, #1c2026, #1a1c1f 60%);
   --panel-bg: #1d1f22;
   --card-bg: #25272b;
   --card-hover: #2d3035;
@@ -19,6 +22,14 @@
   --text-primary: #f4f4f4;
   --text-secondary: #d7d7d7;
   --text-muted: #9b9b9b;
+  --input-bg: #17191d;
+  --mini-btn-bg: #1a1e23;
+  --mini-btn-hover: #242a31;
+  --status-neutral-bg: rgba(52, 73, 94, 0.2);
+  --status-success-bg: rgba(39, 174, 96, 0.18);
+  --status-danger-bg: rgba(231, 76, 60, 0.18);
+  --status-success-text: #8ee8b4;
+  --status-danger-text: #ffb2a8;
   --radius-lg: 14px;
   --radius-md: 10px;
   --radius-sm: 8px;
@@ -32,10 +43,7 @@ body {
   margin: 0;
   height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(1200px 400px at 10% -20%, #21303d 0%, transparent 60%),
-    radial-gradient(1200px 450px at 95% 120%, #2b2522 0%, transparent 55%),
-    var(--app-bg);
+  background: var(--app-bg);
   color: var(--text-primary);
 }
 
@@ -53,17 +61,56 @@ body {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 16px;
+  background:
+    radial-gradient(1200px 400px at 10% -20%, var(--app-wash-a) 0%, transparent 60%),
+    radial-gradient(1200px 450px at 95% 120%, var(--app-wash-b) 0%, transparent 55%),
+    var(--app-bg);
+  color: var(--text-primary);
+}
+
+.app.theme-light {
+  --app-bg: #eef1f4;
+  --app-wash-a: #d6e8f5;
+  --app-wash-b: #e7dfd6;
+  --header-bg: linear-gradient(135deg, #ffffff, #edf1f5 65%);
+  --panel-bg: #f8fafc;
+  --card-bg: #ffffff;
+  --card-hover: #f1f5f9;
+  --file-list-bg: #eef2f6;
+  --file-item-bg: #ffffff;
+  --file-item-hover: #f4f8fb;
+  --border: #d4dbe3;
+  --border-soft: #cbd5df;
+  --secondary: #697586;
+  --secondary-hover: #5b6675;
+  --text-primary: #19212a;
+  --text-secondary: #344054;
+  --text-muted: #667085;
+  --input-bg: #ffffff;
+  --mini-btn-bg: #ffffff;
+  --mini-btn-hover: #edf2f7;
+  --status-neutral-bg: rgba(105, 117, 134, 0.12);
+  --status-success-bg: rgba(39, 174, 96, 0.12);
+  --status-danger-bg: rgba(231, 76, 60, 0.12);
+  --status-success-text: #167a42;
+  --status-danger-text: #b42318;
 }
 
 .app-header {
   padding: 16px 20px;
   border: 1px solid var(--border);
-  background: linear-gradient(135deg, #1c2026, #1a1c1f 60%);
+  background: var(--header-bg);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .title-wrap h1 {
@@ -74,6 +121,41 @@ body {
 .title-wrap p {
   margin: 8px 0 0;
   color: var(--text-muted);
+}
+
+.theme-toggle {
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--file-list-bg);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--file-item-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.theme-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  box-shadow: inset -5px -2px 0 var(--file-list-bg);
+}
+
+.theme-light .theme-toggle-thumb {
+  background: #f4b942;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.18);
 }
 
 .status-chip {
@@ -90,19 +172,19 @@ body {
 }
 
 .status-neutral {
-  background: rgba(52, 73, 94, 0.2);
+  background: var(--status-neutral-bg);
   color: var(--text-secondary);
 }
 
 .status-success {
-  background: rgba(39, 174, 96, 0.18);
-  color: #8ee8b4;
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
   border-color: rgba(39, 174, 96, 0.35);
 }
 
 .status-danger {
-  background: rgba(231, 76, 60, 0.18);
-  color: #ffb2a8;
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
   border-color: rgba(231, 76, 60, 0.35);
 }
 
@@ -178,7 +260,7 @@ body {
   height: 36px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
-  background: #17191d;
+  background: var(--input-bg);
   color: var(--text-primary);
   padding: 0 10px;
   outline: none;
@@ -198,7 +280,7 @@ body {
   height: 30px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
-  background: #1a1e23;
+  background: var(--mini-btn-bg);
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -206,7 +288,7 @@ body {
 }
 
 .mini-btn:hover {
-  background: #242a31;
+  background: var(--mini-btn-hover);
   color: var(--text-primary);
 }
 
@@ -545,6 +627,10 @@ body {
   .app-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .title-line {
+    flex-wrap: wrap;
   }
 
   .status-chip {

@@ -43,6 +43,7 @@ const FILE_ICONS: Record<string, string> = {
 const DEFAULT_FILE_ICON = '📁';
 
 type StatusTone = 'neutral' | 'success' | 'danger';
+type ThemeMode = 'dark' | 'light';
 
 type StatusState = {
   message: string;
@@ -64,6 +65,11 @@ const EMPTY_EDIT_MODAL: EditModalState = {
   files: [],
   checked: new Set()
 };
+
+function getInitialTheme(): ThemeMode {
+  const savedTheme = window.localStorage.getItem('fileopener-theme');
+  return savedTheme === 'light' ? 'light' : 'dark';
+}
 
 function getFileName(path: string) {
   const normalized = path.replace(/\//g, '\\');
@@ -106,6 +112,7 @@ function mergeAndDedupeFiles(current: string[], incoming: string[]) {
 }
 
 function App() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
   const [groups, setGroups] = useState<GroupsRecord>({});
@@ -131,6 +138,14 @@ function App() {
   const notify = useCallback((message: string, tone: StatusTone = 'neutral') => {
     setStatus({ message, tone });
   }, []);
+
+  const toggleThemeMode = () => {
+    setThemeMode((previous) => {
+      const next = previous === 'dark' ? 'light' : 'dark';
+      window.localStorage.setItem('fileopener-theme', next);
+      return next;
+    });
+  };
 
   const filteredFiles = useMemo(() => {
     const keyword = fileKeyword.trim().toLowerCase();
@@ -532,7 +547,7 @@ function App() {
 
   return (
     <div
-      className="app"
+      className={`app theme-${themeMode}`}
       style={{
         fontFamily: tokens.font.family,
         ['--primary' as string]: tokens.colors.primary,
@@ -542,7 +557,19 @@ function App() {
     >
       <header className="app-header">
         <div className="title-wrap">
-          <h1>文件批量打开工具</h1>
+          <div className="title-line">
+            <h1>文件批量打开工具</h1>
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={toggleThemeMode}
+              aria-label={themeMode === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
+              title={themeMode === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
+            >
+              <span className="theme-toggle-thumb" />
+              <span>{themeMode === 'dark' ? '黑夜' : '白天'}</span>
+            </button>
+          </div>
           <p>拖拽、分组、批量打开，一次完成</p>
         </div>
         <div className={`status-chip status-${status.tone}`} title={status.message}>
