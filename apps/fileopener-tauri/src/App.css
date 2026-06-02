@@ -113,8 +113,8 @@ body {
   border: 1px solid var(--border);
   background: var(--panel-bg);
   border-radius: var(--radius-lg);
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 16px;
 }
@@ -138,12 +138,25 @@ body {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.toolbar-main,
+.file-action-toolbar {
+  margin-top: 0;
+  width: min(440px, 100%);
+  align-self: center;
 }
 
 .toolbar-compact {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(440px, 100%);
+  align-self: center;
+  justify-self: center;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 10px;
 }
 
 .sub-toolbar {
@@ -254,6 +267,7 @@ body {
 
 .file-list,
 .group-list {
+  flex: 1;
   min-height: 0;
   overflow: auto;
   border-radius: var(--radius-md);
@@ -286,34 +300,55 @@ body {
   background: var(--file-item-bg);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 0 10px;
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: start;
+  grid-template-columns: 22px minmax(160px, 260px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
   margin-bottom: 8px;
+  min-width: 0;
+  height: 48px;
 }
 
 .file-item:hover {
   background: var(--file-item-hover);
 }
 
-.file-item input {
-  margin-top: 4px;
+.file-check-cell {
+  width: 22px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-check-cell input {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  width: 16px;
+  height: 16px;
 }
 
 .file-name {
   color: var(--text-primary);
   display: block;
   font-size: 13px;
+  line-height: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-path {
   color: var(--text-muted);
   display: block;
   font-size: 12px;
-  margin-top: 4px;
-  word-break: break-all;
+  line-height: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -407,18 +442,29 @@ body {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   padding: 8px;
+  display: grid;
+  grid-template-columns: minmax(160px, 260px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
 }
 
 .group-file span {
   display: block;
   font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-file small {
   display: block;
-  margin-top: 4px;
   color: var(--text-muted);
-  word-break: break-all;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-backdrop {
@@ -466,6 +512,12 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-actions .btn {
+  height: 40px;
+  min-width: 72px;
+  padding: 0 18px;
 }
 
 @media (max-width: 1240px) {
@@ -516,6 +568,16 @@ body {
 @media (max-width: 640px) {
   .toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .file-item,
+  .group-file {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .file-path,
+  .group-file small {
+    grid-column: 2;
   }
 
   .btn-xs {

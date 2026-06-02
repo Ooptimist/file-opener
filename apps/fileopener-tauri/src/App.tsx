@@ -557,7 +557,7 @@ function App() {
             <span>{selectedFiles.length} 个文件 / {checkedCount} 个已勾选</span>
           </div>
 
-          <div className="toolbar">
+          <div className="toolbar toolbar-main">
             <button className="btn btn-primary" onClick={handleSelectFiles}>
               <img src={iconSelectFiles} alt="" />
               选择文件
@@ -565,14 +565,6 @@ function App() {
             <button className="btn btn-success" onClick={() => setSaveModalOpen(true)}>
               <img src={iconSaveGroup} alt="" />
               保存文件组
-            </button>
-            <button className="btn btn-danger" onClick={handleRemoveSelectedFiles}>
-              <img src={iconRemove} alt="" />
-              移除选中
-            </button>
-            <button className="btn btn-success" onClick={handleOpenSelectedFiles}>
-              <img src={iconOpen} alt="" />
-              打开文件
             </button>
           </div>
 
@@ -606,17 +598,30 @@ function App() {
                 const checked = checkedFiles.has(key);
                 return (
                   <label className="file-item" key={key}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleToggleFileChecked(file)}
-                    />
+                    <span className="file-check-cell">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleToggleFileChecked(file)}
+                      />
+                    </span>
                     <span className="file-name">{getFileIcon(file)} {getFileName(file)}</span>
                     <span className="file-path" title={file}>{file}</span>
                   </label>
                 );
               })
             )}
+          </div>
+
+          <div className="toolbar file-action-toolbar">
+            <button className="btn btn-danger" onClick={handleRemoveSelectedFiles}>
+              <img src={iconRemove} alt="" />
+              移除选中
+            </button>
+            <button className="btn btn-success" onClick={handleOpenSelectedFiles}>
+              <img src={iconOpen} alt="" />
+              打开文件
+            </button>
           </div>
         </section>
 
@@ -778,11 +783,13 @@ function App() {
                   const checked = editModal.checked.has(key);
                   return (
                     <label className="file-item" key={key}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => handleEditToggleFile(file)}
-                      />
+                      <span className="file-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => handleEditToggleFile(file)}
+                        />
+                      </span>
                       <span className="file-name">{getFileIcon(file)} {getFileName(file)}</span>
                       <span className="file-path" title={file}>{file}</span>
                     </label>
