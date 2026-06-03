@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -45,6 +45,14 @@ const DEFAULT_FILE_ICON = '📁';
 type StatusTone = 'neutral' | 'success' | 'danger';
 type ThemeMode = 'dark' | 'light';
 
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void) => {
+    ready: Promise<void>;
+    finished: Promise<void>;
+  };
+};
+
+
 type StatusState = {
   message: string;
   tone: StatusTone;
@@ -69,6 +77,10 @@ const EMPTY_EDIT_MODAL: EditModalState = {
 function getInitialTheme(): ThemeMode {
   const savedTheme = window.localStorage.getItem('fileopener-theme');
   return savedTheme === 'light' ? 'light' : 'dark';
+}
+
+function getThemeRevealRadius(x: number, y: number) {
+  return Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
 }
 
 function getFileName(path: string) {
@@ -113,6 +125,7 @@ function mergeAndDedupeFiles(current: string[], incoming: string[]) {
 
 function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
+  const [themeAnimating, setThemeAnimating] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
   const [groups, setGroups] = useState<GroupsRecord>({});
@@ -139,11 +152,51 @@ function App() {
     setStatus({ message, tone });
   }, []);
 
-  const toggleThemeMode = () => {
-    setThemeMode((previous) => {
-      const next = previous === 'dark' ? 'light' : 'dark';
+  const toggleThemeMode = (event: MouseEvent<HTMLButtonElement>) => {
+    if (themeAnimating) {
+      return;
+    }
+
+    const next = themeMode === 'dark' ? 'light' : 'dark';
+    const rect = event.currentTarget.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2;
+    const originY = rect.top + rect.height / 2;
+
+    const applyTheme = () => {
+      setThemeMode(next);
       window.localStorage.setItem('fileopener-theme', next);
-      return next;
+    };
+
+    const viewTransitionDocument = document as ViewTransitionDocument;
+    if (!viewTransitionDocument.startViewTransition) {
+      applyTheme();
+      return;
+    }
+
+    setThemeAnimating(true);
+    const transition = viewTransitionDocument.startViewTransition(applyTheme);
+
+    transition.ready
+      .then(() => {
+        const radius = getThemeRevealRadius(originX, originY);
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${originX}px ${originY}px)`,
+              `circle(${radius}px at ${originX}px ${originY}px)`
+            ]
+          },
+          {
+            duration: 620,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            pseudoElement: '::view-transition-new(root)'
+          }
+        );
+      })
+      .catch(() => undefined);
+
+    transition.finished.finally(() => {
+      setThemeAnimating(false);
     });
   };
 
@@ -560,13 +613,19 @@ function App() {
           <div className="title-line">
             <h1>文件批量打开工具</h1>
             <button
-              className="theme-toggle"
+              className={`theme-toggle theme-toggle-${themeMode}${
+                themeAnimating ? ' theme-toggle-animating' : ''
+              }`}
               type="button"
               onClick={toggleThemeMode}
+              disabled={themeAnimating}
               aria-label={themeMode === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
               title={themeMode === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
             >
-              <span className="theme-toggle-thumb" />
+              <span className="theme-toggle-thumb" aria-hidden="true">
+                <span className="theme-icon theme-icon-sun" />
+                <span className="theme-icon theme-icon-moon" />
+              </span>
               <span>{themeMode === 'dark' ? '黑夜' : '白天'}</span>
             </button>
           </div>
