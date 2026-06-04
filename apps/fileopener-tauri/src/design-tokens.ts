@@ -35,6 +35,6 @@
     xs: 6
   },
   font: {
-    family: 'Microsoft YaHei, Segoe UI, sans-serif'
+    family: 'SF Pro Display, SF Pro Text, Segoe UI Variable, Microsoft YaHei, sans-serif'
   }
 } as const;

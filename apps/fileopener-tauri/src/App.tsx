@@ -776,19 +776,27 @@ function App() {
                       </div>
                     </div>
 
-                    {expanded && (
+                    <div
+                      className={`group-files-shell ${expanded ? 'expanded' : 'collapsed'}`}
+                      aria-hidden={!expanded}
+                    >
                       <div className="group-files">
-                        {files.map((file) => {
+                        {files.map((file, index) => {
                           const fileKey = `${name}:${normalizeIdentity(file)}`;
                           return (
-                            <div className="group-file" key={fileKey} title={file}>
+                            <div
+                              className="group-file"
+                              key={fileKey}
+                              style={{ ['--group-file-index' as string]: index }}
+                              title={file}
+                            >
                               <span>{getFileIcon(file)} {getFileName(file)}</span>
                               <small>{file}</small>
                             </div>
                           );
                         })}
                       </div>
-                    )}
+                    </div>
                   </article>
                 );
               })
