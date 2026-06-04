@@ -223,8 +223,12 @@ body {
   border-radius: 50%;
   top: -1px;
   left: 4px;
-  background: var(--file-list-bg);
+  background: rgba(255, 255, 255, 0.08);
   transition: background-color 0.28s ease;
+}
+
+.theme-light .theme-icon-moon::after {
+  background: rgba(244, 185, 66, 0.16);
 }
 
 .theme-toggle-dark .theme-icon-sun {
