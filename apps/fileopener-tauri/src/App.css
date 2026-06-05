@@ -474,16 +474,25 @@ body {
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--panel-bg);
+  background-clip: padding-box;
   border-radius: var(--radius-xl);
-  box-shadow: var(--surface-shadow), var(--inset-shadow);
+  box-shadow: var(--inset-shadow);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
+  clip-path: inset(0 round var(--radius-xl));
+  -webkit-mask-image: linear-gradient(#fff, #fff);
+  mask-image: linear-gradient(#fff, #fff);
+  contain: paint;
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 18px;
   position: relative;
-  transition: background-color 0.28s ease, border-color 0.28s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  isolation: isolate;
+  transition:
+    background-color 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .panel::before {
@@ -494,10 +503,12 @@ body {
   border-radius: calc(var(--radius-xl) - 1px);
   opacity: 0.22;
   pointer-events: none;
+  z-index: 2;
 }
 
-.panel:hover {
-  transform: translateY(-1px);
+.panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .panel-title-row {
@@ -678,6 +689,13 @@ body {
   scrollbar-color: rgba(150, 160, 175, 0.38) transparent;
 }
 
+.group-list {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
 .file-list::-webkit-scrollbar,
 .group-list::-webkit-scrollbar {
   width: 10px;
@@ -796,13 +814,13 @@ body {
   padding: 12px;
   margin-bottom: 10px;
   box-shadow: 0 1px 0 var(--surface-highlight), var(--card-shadow);
-  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .group-card:hover {
   background: var(--card-hover);
   border-color: var(--hairline);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 0 var(--surface-highlight), 0 16px 36px rgba(0, 0, 0, 0.2);
 }
 
 .group-head {
@@ -820,18 +838,23 @@ body {
   background: linear-gradient(180deg, var(--secondary-hover), var(--secondary));
   box-shadow: var(--inset-shadow);
   cursor: pointer;
-  transition: background-color 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .icon-btn:hover {
   background: var(--secondary-hover);
   border-color: var(--hairline);
-  transform: translateY(-1px);
+  box-shadow: var(--inset-shadow), 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
 .icon-btn img {
   width: 14px;
   height: 14px;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.icon-btn:hover img {
+  transform: scale(1.08);
 }
 
 .group-main {
