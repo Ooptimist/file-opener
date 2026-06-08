@@ -12,7 +12,6 @@ import iconSaveGroup from './assets/icons/fluent/save-group.png';
 import iconRemove from './assets/icons/fluent/remove.png';
 import iconOpen from './assets/icons/fluent/open.png';
 import iconExpand from './assets/icons/fluent/expand.png';
-import iconCollapse from './assets/icons/fluent/collapse.png';
 import iconEdit from './assets/icons/fluent/edit.png';
 import iconFolder from './assets/icons/fluent/folder.png';
 
@@ -748,8 +747,12 @@ function App() {
                 return (
                   <article className="group-card" key={name}>
                     <div className="group-head">
-                      <button className="icon-btn" onClick={() => handleToggleGroup(name)}>
-                        <img src={expanded ? iconCollapse : iconExpand} alt="" />
+                      <button
+                        className={`icon-btn ${expanded ? 'is-expanded' : 'is-collapsed'}`}
+                        onClick={() => handleToggleGroup(name)}
+                        aria-label={expanded ? '收起文件组' : '展开文件组'}
+                      >
+                        <img src={iconExpand} alt="" />
                       </button>
 
                       <div className="group-main">
