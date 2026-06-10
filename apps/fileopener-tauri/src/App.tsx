@@ -1,69 +1,18 @@
-﻿import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import './App.css';
+import { CurrentFilePanel } from './components/CurrentFilePanel';
+import { EditGroupModal } from './components/EditGroupModal';
+import { GroupPanel } from './components/GroupPanel';
+import { OpenFailuresModal } from './components/OpenFailuresModal';
+import { SaveGroupModal } from './components/SaveGroupModal';
 import { tokens } from './design-tokens';
+import { getFileName, mergeAndDedupeFiles, normalizeIdentity } from './file-utils';
+import { useThemeTransition } from './hooks/useThemeTransition';
 import { api } from './tauri-api';
-import type { GroupStats, GroupsRecord } from './types';
-
-import iconSelectFiles from './assets/icons/fluent/select-files.png';
-import iconSaveGroup from './assets/icons/fluent/save-group.png';
-import iconRemove from './assets/icons/fluent/remove.png';
-import iconOpen from './assets/icons/fluent/open.png';
-import iconExpand from './assets/icons/fluent/expand.png';
-import iconEdit from './assets/icons/fluent/edit.png';
-import iconFolder from './assets/icons/fluent/folder.png';
-
-const FILE_ICONS: Record<string, string> = {
-  '.txt': '📄',
-  '.pdf': '📕',
-  '.doc': '📘',
-  '.docx': '📘',
-  '.xls': '📗',
-  '.xlsx': '📗',
-  '.ppt': '📙',
-  '.pptx': '📙',
-  '.png': '🖼️',
-  '.jpg': '🖼️',
-  '.jpeg': '🖼️',
-  '.gif': '🖼️',
-  '.mp3': '🎵',
-  '.mp4': '🎬',
-  '.zip': '🗜️',
-  '.rar': '🗜️',
-  '.exe': '⚙️',
-  '.py': '🐍',
-  '.js': '📜',
-  '.html': '🌐',
-  '.css': '🎨'
-};
-
-const DEFAULT_FILE_ICON = '📁';
-
-type StatusTone = 'neutral' | 'success' | 'danger';
-type ThemeMode = 'dark' | 'light';
-
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (callback: () => void) => {
-    ready: Promise<void>;
-    finished: Promise<void>;
-  };
-};
-
-
-type StatusState = {
-  message: string;
-  tone: StatusTone;
-};
-
-type EditModalState = {
-  open: boolean;
-  originalName: string;
-  name: string;
-  files: string[];
-  checked: Set<string>;
-};
+import type { EditModalState, GroupStats, GroupsRecord, StatusState, StatusTone } from './types';
 
 const EMPTY_EDIT_MODAL: EditModalState = {
   open: false,
@@ -73,58 +22,8 @@ const EMPTY_EDIT_MODAL: EditModalState = {
   checked: new Set()
 };
 
-function getInitialTheme(): ThemeMode {
-  const savedTheme = window.localStorage.getItem('fileopener-theme');
-  return savedTheme === 'light' ? 'light' : 'dark';
-}
-
-function getThemeRevealRadius(x: number, y: number) {
-  return Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
-}
-
-function getFileName(path: string) {
-  const normalized = path.replace(/\//g, '\\');
-  const idx = normalized.lastIndexOf('\\');
-  return idx >= 0 ? normalized.slice(idx + 1) : normalized;
-}
-
-function getFileIcon(path: string) {
-  const name = getFileName(path);
-  const idx = name.lastIndexOf('.');
-  if (idx < 0) {
-    return DEFAULT_FILE_ICON;
-  }
-  const ext = name.slice(idx).toLowerCase();
-  return FILE_ICONS[ext] ?? DEFAULT_FILE_ICON;
-}
-
-function normalizeIdentity(path: string) {
-  return path.trim().replace(/\//g, '\\').toLowerCase();
-}
-
-function mergeAndDedupeFiles(current: string[], incoming: string[]) {
-  const seen = new Set(current.map((item) => normalizeIdentity(item)));
-  const out = [...current];
-
-  for (const file of incoming) {
-    const normalized = file.trim();
-    if (!normalized) {
-      continue;
-    }
-    const key = normalizeIdentity(normalized);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    out.push(normalized);
-  }
-
-  return out;
-}
-
 function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
-  const [themeAnimating, setThemeAnimating] = useState(false);
+  const { themeMode, themeAnimating, toggleThemeMode } = useThemeTransition();
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
   const [groups, setGroups] = useState<GroupsRecord>({});
@@ -144,60 +43,14 @@ function App() {
   const [saveGroupName, setSaveGroupName] = useState('');
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-
   const [editModal, setEditModal] = useState<EditModalState>(EMPTY_EDIT_MODAL);
+
+  const [failedFiles, setFailedFiles] = useState<string[]>([]);
+  const [failuresModalOpen, setFailuresModalOpen] = useState(false);
 
   const notify = useCallback((message: string, tone: StatusTone = 'neutral') => {
     setStatus({ message, tone });
   }, []);
-
-  const toggleThemeMode = (event: MouseEvent<HTMLButtonElement>) => {
-    if (themeAnimating) {
-      return;
-    }
-
-    const next = themeMode === 'dark' ? 'light' : 'dark';
-    const rect = event.currentTarget.getBoundingClientRect();
-    const originX = rect.left + rect.width / 2;
-    const originY = rect.top + rect.height / 2;
-
-    const applyTheme = () => {
-      setThemeMode(next);
-      window.localStorage.setItem('fileopener-theme', next);
-    };
-
-    const viewTransitionDocument = document as ViewTransitionDocument;
-    if (!viewTransitionDocument.startViewTransition) {
-      applyTheme();
-      return;
-    }
-
-    setThemeAnimating(true);
-    const transition = viewTransitionDocument.startViewTransition(applyTheme);
-
-    transition.ready
-      .then(() => {
-        const radius = getThemeRevealRadius(originX, originY);
-        document.documentElement.animate(
-          {
-            clipPath: [
-              `circle(0px at ${originX}px ${originY}px)`,
-              `circle(${radius}px at ${originX}px ${originY}px)`
-            ]
-          },
-          {
-            duration: 620,
-            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-            pseudoElement: '::view-transition-new(root)'
-          }
-        );
-      })
-      .catch(() => undefined);
-
-    transition.finished.finally(() => {
-      setThemeAnimating(false);
-    });
-  };
 
   const filteredFiles = useMemo(() => {
     const keyword = fileKeyword.trim().toLowerCase();
@@ -265,6 +118,19 @@ function App() {
 
     setSelectedFiles((previous) => mergeAndDedupeFiles(previous, files));
   }, []);
+
+  const recordOpenResult = useCallback((successCount: number, nextFailedFiles: string[]) => {
+    if (nextFailedFiles.length > 0) {
+      setFailedFiles(nextFailedFiles);
+      setFailuresModalOpen(true);
+      notify(`成功打开 ${successCount} 个文件，失败 ${nextFailedFiles.length} 个`, 'danger');
+      return;
+    }
+
+    setFailedFiles([]);
+    setFailuresModalOpen(false);
+    notify(`成功打开 ${successCount} 个文件`, 'success');
+  }, [notify]);
 
   useEffect(() => {
     let mounted = true;
@@ -427,11 +293,7 @@ function App() {
 
     try {
       const result = await api.openFiles(filesToOpen);
-      if (result.failedFiles.length > 0) {
-        notify(`成功打开 ${result.successCount} 个文件，失败 ${result.failedFiles.length} 个`, 'danger');
-      } else {
-        notify(`成功打开 ${result.successCount} 个文件`, 'success');
-      }
+      recordOpenResult(result.successCount, result.failedFiles);
     } catch (error) {
       console.error(error);
       notify(`打开文件失败: ${String(error)}`, 'danger');
@@ -491,11 +353,7 @@ function App() {
 
     try {
       const result = await api.openFiles(files);
-      if (result.failedFiles.length > 0) {
-        notify(`成功打开 ${result.successCount} 个文件，失败 ${result.failedFiles.length} 个`, 'danger');
-      } else {
-        notify(`成功打开 ${result.successCount} 个文件`, 'success');
-      }
+      recordOpenResult(result.successCount, result.failedFiles);
     } catch (error) {
       console.error(error);
       notify(`打开文件组失败: ${String(error)}`, 'danger');
@@ -597,6 +455,27 @@ function App() {
     }
   };
 
+  const handleEditNameChange = (name: string) => {
+    setEditModal((previous) => ({
+      ...previous,
+      name
+    }));
+  };
+
+  const copyFailedFiles = async () => {
+    if (failedFiles.length === 0) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(failedFiles.join('\n'));
+      notify('已复制失败文件路径', 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`复制失败路径失败: ${String(error)}`, 'danger');
+    }
+  };
+
   return (
     <div
       className={`app theme-${themeMode}`}
@@ -630,205 +509,60 @@ function App() {
           </div>
           <p>拖拽、分组、批量打开，一次完成</p>
         </div>
-        <div className={`status-chip status-${status.tone}`} title={status.message}>
-          {status.message}
+        <div className="status-area">
+          <div className={`status-chip status-${status.tone}`} title={status.message}>
+            {status.message}
+          </div>
+          {failedFiles.length > 0 && (
+            <button className="mini-btn status-action" onClick={() => setFailuresModalOpen(true)}>
+              查看失败文件
+            </button>
+          )}
         </div>
       </header>
 
       <main className="app-main">
-        <section className="panel panel-left">
-          <div className="panel-title-row">
-            <h2>当前文件列表</h2>
-            <span>{selectedFiles.length} 个文件 / {checkedCount} 个已勾选</span>
-          </div>
+        <CurrentFilePanel
+          selectedFiles={selectedFiles}
+          checkedFiles={checkedFiles}
+          checkedCount={checkedCount}
+          filteredFiles={filteredFiles}
+          fileKeyword={fileKeyword}
+          dragActive={dragActive}
+          onFileKeywordChange={setFileKeyword}
+          onSelectFiles={handleSelectFiles}
+          onSaveGroupClick={() => setSaveModalOpen(true)}
+          onSelectAllFilteredFiles={selectAllFilteredFiles}
+          onInvertFilteredSelection={invertFilteredSelection}
+          onClearSelection={clearSelection}
+          onToggleFileChecked={handleToggleFileChecked}
+          onRemoveSelectedFiles={handleRemoveSelectedFiles}
+          onOpenSelectedFiles={handleOpenSelectedFiles}
+        />
 
-          <div className="toolbar toolbar-main">
-            <button className="btn btn-primary" onClick={handleSelectFiles}>
-              <img src={iconSelectFiles} alt="" />
-              选择文件
-            </button>
-            <button className="btn btn-success" onClick={() => setSaveModalOpen(true)}>
-              <img src={iconSaveGroup} alt="" />
-              保存文件组
-            </button>
-          </div>
-
-          <div className="sub-toolbar">
-            <input
-              className="search-input"
-              placeholder="筛选文件名或路径"
-              value={fileKeyword}
-              onChange={(event) => setFileKeyword(event.target.value)}
-            />
-            <div className="inline-actions">
-              <button className="mini-btn" onClick={selectAllFilteredFiles}>全选筛选</button>
-              <button className="mini-btn" onClick={invertFilteredSelection}>反选筛选</button>
-              <button className="mini-btn" onClick={clearSelection}>清空勾选</button>
-            </div>
-          </div>
-
-          <div className={`file-list ${dragActive ? 'drag-active' : ''}`}>
-            {selectedFiles.length === 0 ? (
-              <div className="empty-state">
-                暂无文件
-                <br />
-                <br />
-                点击“选择文件”或将文件拖拽到窗口
-              </div>
-            ) : filteredFiles.length === 0 ? (
-              <div className="empty-state">没有匹配筛选条件的文件</div>
-            ) : (
-              filteredFiles.map((file) => {
-                const key = normalizeIdentity(file);
-                const checked = checkedFiles.has(key);
-                return (
-                  <label className="file-item" key={key}>
-                    <span className="file-check-cell">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => handleToggleFileChecked(file)}
-                      />
-                    </span>
-                    <span className="file-name">{getFileIcon(file)} {getFileName(file)}</span>
-                    <span className="file-path" title={file}>{file}</span>
-                  </label>
-                );
-              })
-            )}
-          </div>
-
-          <div className="toolbar file-action-toolbar">
-            <button className="btn btn-danger" onClick={handleRemoveSelectedFiles}>
-              <img src={iconRemove} alt="" />
-              移除选中
-            </button>
-            <button className="btn btn-success" onClick={handleOpenSelectedFiles}>
-              <img src={iconOpen} alt="" />
-              打开文件
-            </button>
-          </div>
-        </section>
-
-        <section className="panel panel-right">
-          <div className="panel-title-row">
-            <h2>我的文件组</h2>
-            <span>{Object.keys(groups).length} 个分组</span>
-          </div>
-
-          <div className="sub-toolbar">
-            <input
-              className="search-input"
-              placeholder="筛选分组名或分组内路径"
-              value={groupKeyword}
-              onChange={(event) => setGroupKeyword(event.target.value)}
-            />
-            <div className="inline-actions">
-              <button className="mini-btn" onClick={expandAllVisibleGroups}>展开全部</button>
-              <button className="mini-btn" onClick={collapseAllGroups}>折叠全部</button>
-            </div>
-          </div>
-
-          <div className="group-list">
-            {Object.keys(groups).length === 0 ? (
-              <div className="empty-state">
-                暂无保存的文件组
-                <br />
-                <br />
-                选择文件后点击“保存文件组”
-              </div>
-            ) : filteredGroupEntries.length === 0 ? (
-              <div className="empty-state">没有匹配筛选条件的分组</div>
-            ) : (
-              filteredGroupEntries.map(([name, files]) => {
-                const expanded = expandedGroups.has(name);
-                const stats = groupStats[name] ?? { existing: 0, total: files.length };
-
-                return (
-                  <article className="group-card" key={name}>
-                    <div className="group-head">
-                      <button
-                        className={`icon-btn ${expanded ? 'is-expanded' : 'is-collapsed'}`}
-                        onClick={() => handleToggleGroup(name)}
-                        aria-label={expanded ? '收起文件组' : '展开文件组'}
-                      >
-                        <img src={iconExpand} alt="" />
-                      </button>
-
-                      <div className="group-main">
-                        <div className="group-name-row">
-                          <img src={iconFolder} alt="" />
-                          <strong>{name}</strong>
-                        </div>
-                        <div className="group-count">存在 {stats.existing} / 总计 {stats.total}</div>
-                      </div>
-
-                      <div className="group-actions">
-                        <button className="btn btn-xs btn-success" onClick={() => handleOpenGroup(name)}>
-                          <img src={iconOpen} alt="" />
-                          打开
-                        </button>
-                        <button className="btn btn-xs btn-secondary" onClick={() => openEditModal(name)}>
-                          <img src={iconEdit} alt="" />
-                          编辑
-                        </button>
-                        <button className="btn btn-xs btn-danger" onClick={() => setDeleteTarget(name)}>
-                          <img src={iconRemove} alt="" />
-                          删除
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`group-files-shell ${expanded ? 'expanded' : 'collapsed'}`}
-                      aria-hidden={!expanded}
-                    >
-                      <div className="group-files">
-                        {files.map((file, index) => {
-                          const fileKey = `${name}:${normalizeIdentity(file)}`;
-                          return (
-                            <div
-                              className="group-file"
-                              key={fileKey}
-                              style={{ ['--group-file-index' as string]: index }}
-                              title={file}
-                            >
-                              <span>{getFileIcon(file)} {getFileName(file)}</span>
-                              <small>{file}</small>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
+        <GroupPanel
+          groups={groups}
+          groupStats={groupStats}
+          filteredGroupEntries={filteredGroupEntries}
+          expandedGroups={expandedGroups}
+          groupKeyword={groupKeyword}
+          onGroupKeywordChange={setGroupKeyword}
+          onExpandAllVisibleGroups={expandAllVisibleGroups}
+          onCollapseAllGroups={collapseAllGroups}
+          onToggleGroup={handleToggleGroup}
+          onOpenGroup={handleOpenGroup}
+          onEditGroup={openEditModal}
+          onDeleteGroup={setDeleteTarget}
+        />
       </main>
 
       {saveModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h3>保存文件组</h3>
-            <input
-              autoFocus
-              value={saveGroupName}
-              onChange={(event) => setSaveGroupName(event.target.value)}
-              placeholder="请输入文件组名称"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  void handleSaveGroup();
-                }
-              }}
-            />
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setSaveModalOpen(false)}>取消</button>
-              <button className="btn btn-success" onClick={handleSaveGroup}>保存</button>
-            </div>
-          </div>
-        </div>
+        <SaveGroupModal
+          groupName={saveGroupName}
+          onGroupNameChange={setSaveGroupName}
+          onCancel={() => setSaveModalOpen(false)}
+          onSave={handleSaveGroup}
+        />
       )}
 
       {deleteTarget && (
@@ -845,62 +579,23 @@ function App() {
       )}
 
       {editModal.open && (
-        <div className="modal-backdrop">
-          <div className="modal modal-large">
-            <h3>编辑文件组</h3>
-            <input
-              autoFocus
-              value={editModal.name}
-              onChange={(event) =>
-                setEditModal((previous) => ({
-                  ...previous,
-                  name: event.target.value
-                }))
-              }
-              placeholder="文件组名称"
-            />
+        <EditGroupModal
+          modal={editModal}
+          onNameChange={handleEditNameChange}
+          onAddFiles={handleEditAddFiles}
+          onRemoveSelected={handleEditRemoveSelected}
+          onToggleFile={handleEditToggleFile}
+          onCancel={() => setEditModal(EMPTY_EDIT_MODAL)}
+          onSave={handleEditSave}
+        />
+      )}
 
-            <div className="toolbar toolbar-compact">
-              <button className="btn btn-primary" onClick={handleEditAddFiles}>
-                <img src={iconSelectFiles} alt="" />
-                添加文件
-              </button>
-              <button className="btn btn-danger" onClick={handleEditRemoveSelected}>
-                <img src={iconRemove} alt="" />
-                删除选中
-              </button>
-            </div>
-
-            <div className="file-list file-list-edit">
-              {editModal.files.length === 0 ? (
-                <div className="empty-state">该分组暂无文件</div>
-              ) : (
-                editModal.files.map((file) => {
-                  const key = normalizeIdentity(file);
-                  const checked = editModal.checked.has(key);
-                  return (
-                    <label className="file-item" key={key}>
-                      <span className="file-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => handleEditToggleFile(file)}
-                        />
-                      </span>
-                      <span className="file-name">{getFileIcon(file)} {getFileName(file)}</span>
-                      <span className="file-path" title={file}>{file}</span>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setEditModal(EMPTY_EDIT_MODAL)}>取消</button>
-              <button className="btn btn-success" onClick={handleEditSave}>保存</button>
-            </div>
-          </div>
-        </div>
+      {failuresModalOpen && failedFiles.length > 0 && (
+        <OpenFailuresModal
+          failedFiles={failedFiles}
+          onCopy={copyFailedFiles}
+          onClose={() => setFailuresModalOpen(false)}
+        />
       )}
     </div>
   );

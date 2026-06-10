@@ -81,6 +81,79 @@ pub fn normalize_and_dedupe(files: &[String]) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+fn validate_group_name(name: &str) -> Result<&str, String> {
+    let group_name = name.trim();
+    if group_name.is_empty() {
+        return Err("文件组名称不能为空".to_string());
+    }
+    Ok(group_name)
+}
+
+fn validate_rename_request(
+    old_name: &str,
+    new_name: &str,
+    old_exists: bool,
+    new_exists: bool,
+) -> Result<(), String> {
+    validate_group_name(old_name)?;
+    validate_group_name(new_name)?;
+
+    if !old_exists {
+        return Err("原文件组不存在".to_string());
+    }
+    if old_name != new_name && new_exists {
+        return Err("目标文件组名称已存在".to_string());
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_and_dedupe_trims_absolute_paths_and_removes_duplicates() {
+        let cwd = std::env::current_dir().expect("cwd");
+        let expected = normalize_components(cwd.join("Cargo.toml"))
+            .to_string_lossy()
+            .replace('/', "\\");
+
+        let files = vec![
+            " ./Cargo.toml ".to_string(),
+            ".\\Cargo.toml".to_string(),
+            "".to_string(),
+        ];
+
+        let result = normalize_and_dedupe(&files).expect("dedupe");
+
+        assert_eq!(result, vec![expected]);
+    }
+
+    #[test]
+    fn validate_group_name_rejects_blank_names() {
+        let error = validate_group_name("   ").expect_err("blank name should fail");
+
+        assert_eq!(error, "文件组名称不能为空");
+    }
+
+    #[test]
+    fn validate_rename_request_rejects_missing_original_group() {
+        let error = validate_rename_request("old", "new", false, false)
+            .expect_err("missing original should fail");
+
+        assert_eq!(error, "原文件组不存在");
+    }
+
+    #[test]
+    fn validate_rename_request_rejects_existing_target_group() {
+        let error = validate_rename_request("old", "new", true, true)
+            .expect_err("existing target should fail");
+
+        assert_eq!(error, "目标文件组名称已存在");
+    }
+}
+
 pub fn load_groups(app: &AppHandle) -> Result<Groups, String> {
     let path = groups_file_path(app)?;
     if !path.exists() {
@@ -102,10 +175,7 @@ pub fn write_groups(app: &AppHandle, groups: &Groups) -> Result<(), String> {
 }
 
 pub fn save_group(app: &AppHandle, name: &str, files: &[String]) -> Result<(), String> {
-    let group_name = name.trim();
-    if group_name.is_empty() {
-        return Err("文件组名称不能为空".to_string());
-    }
+    let group_name = validate_group_name(name)?;
 
     let normalized_files = normalize_and_dedupe(files)?;
     if normalized_files.is_empty() {
@@ -121,17 +191,13 @@ pub fn rename_group(app: &AppHandle, old_name: &str, new_name: &str) -> Result<(
     let old_name = old_name.trim();
     let new_name = new_name.trim();
 
-    if old_name.is_empty() || new_name.is_empty() {
-        return Err("文件组名称不能为空".to_string());
-    }
-
     let mut groups = load_groups(app)?;
-    if !groups.contains_key(old_name) {
-        return Err("原文件组不存在".to_string());
-    }
-    if old_name != new_name && groups.contains_key(new_name) {
-        return Err("目标文件组名称已存在".to_string());
-    }
+    validate_rename_request(
+        old_name,
+        new_name,
+        groups.contains_key(old_name),
+        groups.contains_key(new_name),
+    )?;
 
     let files = groups
         .remove(old_name)
@@ -141,10 +207,7 @@ pub fn rename_group(app: &AppHandle, old_name: &str, new_name: &str) -> Result<(
 }
 
 pub fn delete_group(app: &AppHandle, name: &str) -> Result<(), String> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err("文件组名称不能为空".to_string());
-    }
+    let name = validate_group_name(name)?;
 
     let mut groups = load_groups(app)?;
     groups.remove(name);
@@ -152,10 +215,7 @@ pub fn delete_group(app: &AppHandle, name: &str) -> Result<(), String> {
 }
 
 pub fn update_group_files(app: &AppHandle, name: &str, files: &[String]) -> Result<(), String> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err("文件组名称不能为空".to_string());
-    }
+    let name = validate_group_name(name)?;
 
     let mut groups = load_groups(app)?;
     if !groups.contains_key(name) {

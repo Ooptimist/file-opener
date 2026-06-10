@@ -89,3 +89,28 @@ pub fn migrate_legacy_groups(app: &AppHandle) -> Result<MigrationResult, String>
         source: None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_legacy_groups_trims_names_and_dedupes_files() {
+        let path = std::env::temp_dir().join(format!(
+            "fileopener-legacy-test-{}.json",
+            std::process::id()
+        ));
+        let cwd = std::env::current_dir().expect("cwd");
+        let expected_file = cwd.join("Cargo.toml").to_string_lossy().replace('/', "\\");
+        let content = r#"{
+            "  docs  ": [" ./Cargo.toml ", ".\\Cargo.toml", ""]
+        }"#;
+
+        fs::write(&path, content).expect("write legacy test file");
+
+        let groups = read_legacy_groups(&path).expect("read legacy groups");
+
+        fs::remove_file(&path).expect("remove legacy test file");
+        assert_eq!(groups.get("docs"), Some(&vec![expected_file]));
+    }
+}
