@@ -1,5 +1,12 @@
 ﻿import { invoke } from '@tauri-apps/api/core';
-import type { GroupStats, GroupsRecord, MigrationResult, OpenFilesResult } from './types';
+import type {
+  ExportGroupsResult,
+  GroupStats,
+  GroupsRecord,
+  ImportGroupsResult,
+  MigrationResult,
+  OpenFilesResult
+} from './types';
 
 export const api = {
   loadGroups: () => invoke<GroupsRecord>('load_groups'),
@@ -11,5 +18,9 @@ export const api = {
     invoke<void>('update_group_files', { name, files }),
   getGroupStats: (name: string) => invoke<GroupStats>('get_group_stats', { name }),
   openFiles: (files: string[]) => invoke<OpenFilesResult>('open_files', { files }),
-  migrateLegacyGroups: () => invoke<MigrationResult>('migrate_legacy_groups')
+  migrateLegacyGroups: () => invoke<MigrationResult>('migrate_legacy_groups'),
+  getGroupsFilePath: () => invoke<string>('get_groups_file_path'),
+  exportGroupsToPath: (path: string) => invoke<ExportGroupsResult>('export_groups_to_path', { path }),
+  importGroupsFromPath: (path: string) => invoke<ImportGroupsResult>('import_groups_from_path', { path }),
+  openDataDir: () => invoke<string>('open_data_dir')
 };

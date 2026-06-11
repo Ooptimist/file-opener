@@ -1,3 +1,4 @@
+import { ActionMenu } from './ActionMenu';
 import { getFileIcon, getFileName, normalizeIdentity } from '../file-utils';
 import type { GroupStats, GroupsRecord } from '../types';
 
@@ -16,8 +17,14 @@ type GroupPanelProps = {
   onGroupKeywordChange: (value: string) => void;
   onExpandAllVisibleGroups: () => void;
   onCollapseAllGroups: () => void;
+  onRefreshGroups: () => void;
+  onExportGroups: () => void;
+  onImportGroups: () => void;
+  onOpenDataDir: () => void;
   onToggleGroup: (name: string) => void;
   onOpenGroup: (name: string) => void;
+  onLoadGroup: (name: string) => void;
+  onCopyGroup: (name: string) => void;
   onEditGroup: (name: string) => void;
   onDeleteGroup: (name: string) => void;
 };
@@ -31,8 +38,14 @@ export function GroupPanel({
   onGroupKeywordChange,
   onExpandAllVisibleGroups,
   onCollapseAllGroups,
+  onRefreshGroups,
+  onExportGroups,
+  onImportGroups,
+  onOpenDataDir,
   onToggleGroup,
   onOpenGroup,
+  onLoadGroup,
+  onCopyGroup,
   onEditGroup,
   onDeleteGroup
 }: GroupPanelProps) {
@@ -51,8 +64,16 @@ export function GroupPanel({
           onChange={(event) => onGroupKeywordChange(event.target.value)}
         />
         <div className="inline-actions">
-          <button className="mini-btn" onClick={onExpandAllVisibleGroups}>展开全部</button>
-          <button className="mini-btn" onClick={onCollapseAllGroups}>折叠全部</button>
+          <ActionMenu
+            items={[
+              { label: '展开全部', onClick: onExpandAllVisibleGroups, disabled: filteredGroupEntries.length === 0 },
+              { label: '折叠全部', onClick: onCollapseAllGroups, disabled: expandedGroups.size === 0 },
+              { label: '刷新', onClick: onRefreshGroups },
+              { label: '导出', onClick: onExportGroups, disabled: Object.keys(groups).length === 0 },
+              { label: '导入', onClick: onImportGroups },
+              { label: '数据目录', onClick: onOpenDataDir }
+            ]}
+          />
         </div>
       </div>
 
@@ -95,14 +116,14 @@ export function GroupPanel({
                       <img src={iconOpen} alt="" />
                       打开
                     </button>
-                    <button className="btn btn-xs btn-secondary" onClick={() => onEditGroup(name)}>
-                      <img src={iconEdit} alt="" />
-                      编辑
-                    </button>
-                    <button className="btn btn-xs btn-danger" onClick={() => onDeleteGroup(name)}>
-                      <img src={iconRemove} alt="" />
-                      删除
-                    </button>
+                    <ActionMenu
+                      items={[
+                        { label: '载入到当前列表', onClick: () => onLoadGroup(name) },
+                        { label: '复制路径', onClick: () => onCopyGroup(name) },
+                        { label: '编辑', onClick: () => onEditGroup(name), icon: iconEdit },
+                        { label: '删除', onClick: () => onDeleteGroup(name), icon: iconRemove, tone: 'danger' }
+                      ]}
+                    />
                   </div>
                 </div>
 

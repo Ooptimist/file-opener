@@ -31,3 +31,16 @@ export type MigrationResult = {
   migrated: boolean;
   source?: string;
 };
+
+export type ExportGroupsResult = {
+  groupCount: number;
+  fileCount: number;
+  path: string;
+};
+
+export type ImportGroupsResult = {
+  groupCount: number;
+  fileCount: number;
+  skippedGroups: number;
+  path: string;
+};

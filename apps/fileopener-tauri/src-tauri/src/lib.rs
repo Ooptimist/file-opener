@@ -4,7 +4,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 use services::file_open_service::{open_files as open_files_service, OpenFilesResult};
-use services::group_service as group;
+use services::group_service::{self as group, ExportGroupsResult, ImportGroupsResult};
 use services::migration_service::{migrate_legacy_groups as migrate_legacy_groups_service, MigrationResult};
 
 #[derive(Serialize)]
@@ -55,6 +55,26 @@ fn migrate_legacy_groups(app: AppHandle) -> Result<MigrationResult, String> {
     migrate_legacy_groups_service(&app)
 }
 
+#[tauri::command]
+fn get_groups_file_path(app: AppHandle) -> Result<String, String> {
+    group::groups_file_path_display(&app)
+}
+
+#[tauri::command]
+fn export_groups_to_path(app: AppHandle, path: String) -> Result<ExportGroupsResult, String> {
+    group::export_groups_to_path(&app, &path)
+}
+
+#[tauri::command]
+fn import_groups_from_path(app: AppHandle, path: String) -> Result<ImportGroupsResult, String> {
+    group::import_groups_from_path(&app, &path)
+}
+
+#[tauri::command]
+fn open_data_dir(app: AppHandle) -> Result<String, String> {
+    group::open_data_dir(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -77,7 +97,11 @@ pub fn run() {
             update_group_files,
             get_group_stats,
             open_files,
-            migrate_legacy_groups
+            migrate_legacy_groups,
+            get_groups_file_path,
+            export_groups_to_path,
+            import_groups_from_path,
+            open_data_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

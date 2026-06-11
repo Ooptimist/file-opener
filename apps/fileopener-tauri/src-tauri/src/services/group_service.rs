@@ -1,12 +1,40 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 
 use tauri::{AppHandle, Manager};
 
 pub type Groups = BTreeMap<String, Vec<String>>;
 
 const GROUPS_FILE_NAME: &str = "file_groups.json";
+
+#[derive(serde::Serialize)]
+pub struct ExportGroupsResult {
+    #[serde(rename = "groupCount")]
+    pub group_count: u32,
+    #[serde(rename = "fileCount")]
+    pub file_count: u32,
+    pub path: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct ImportGroupsResult {
+    #[serde(rename = "groupCount")]
+    pub group_count: u32,
+    #[serde(rename = "fileCount")]
+    pub file_count: u32,
+    #[serde(rename = "skippedGroups")]
+    pub skipped_groups: u32,
+    pub path: String,
+}
+
+struct PreparedImport {
+    groups: Groups,
+    group_count: u32,
+    file_count: u32,
+    skipped_groups: u32,
+}
 
 fn normalize_components(path: PathBuf) -> PathBuf {
     let mut out = PathBuf::new();
@@ -63,6 +91,15 @@ fn groups_file_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join(GROUPS_FILE_NAME))
 }
 
+fn groups_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?;
+    fs::create_dir_all(&app_data_dir).map_err(|e| format!("创建应用数据目录失败: {e}"))?;
+    Ok(app_data_dir)
+}
+
 pub fn normalize_and_dedupe(files: &[String]) -> Result<Vec<String>, String> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
@@ -106,6 +143,60 @@ fn validate_rename_request(
     }
 
     Ok(())
+}
+
+fn make_import_group_name(name: &str, existing: &HashSet<String>) -> String {
+    let base = name.trim();
+    if !existing.contains(base) {
+        return base.to_string();
+    }
+
+    let first = format!("{base} (导入)");
+    if !existing.contains(&first) {
+        return first;
+    }
+
+    let mut index = 2;
+    loop {
+        let candidate = format!("{base} (导入 {index})");
+        if !existing.contains(&candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+fn prepare_import_groups(raw: Groups, existing_names: &HashSet<String>) -> Result<PreparedImport, String> {
+    let mut names = existing_names.clone();
+    let mut groups = Groups::new();
+    let mut file_count = 0_u32;
+    let mut skipped_groups = 0_u32;
+
+    for (name, files) in raw {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            skipped_groups += 1;
+            continue;
+        }
+
+        let normalized_files = normalize_and_dedupe(&files)?;
+        if normalized_files.is_empty() {
+            skipped_groups += 1;
+            continue;
+        }
+
+        let next_name = make_import_group_name(trimmed, &names);
+        names.insert(next_name.clone());
+        file_count += normalized_files.len() as u32;
+        groups.insert(next_name, normalized_files);
+    }
+
+    Ok(PreparedImport {
+        group_count: groups.len() as u32,
+        groups,
+        file_count,
+        skipped_groups,
+    })
 }
 
 #[cfg(test)]
@@ -152,6 +243,40 @@ mod tests {
 
         assert_eq!(error, "目标文件组名称已存在");
     }
+
+    #[test]
+    fn make_import_group_name_avoids_existing_names() {
+        let existing = HashSet::from([
+            "docs".to_string(),
+            "docs (导入)".to_string(),
+            "docs (导入 2)".to_string(),
+        ]);
+
+        let name = make_import_group_name(" docs ", &existing);
+
+        assert_eq!(name, "docs (导入 3)");
+    }
+
+    #[test]
+    fn prepare_import_groups_sanitizes_names_files_and_conflicts() {
+        let existing = HashSet::from(["docs".to_string()]);
+        let mut raw = Groups::new();
+        raw.insert(
+            " docs ".to_string(),
+            vec![
+                " ./Cargo.toml ".to_string(),
+                ".\\Cargo.toml".to_string(),
+                "".to_string(),
+            ],
+        );
+        raw.insert("   ".to_string(), vec!["./Cargo.toml".to_string()]);
+
+        let prepared = prepare_import_groups(raw, &existing).expect("prepare import");
+
+        assert_eq!(prepared.group_count, 1);
+        assert_eq!(prepared.file_count, 1);
+        assert!(prepared.groups.contains_key("docs (导入)"));
+    }
 }
 
 pub fn load_groups(app: &AppHandle) -> Result<Groups, String> {
@@ -172,6 +297,91 @@ pub fn write_groups(app: &AppHandle, groups: &Groups) -> Result<(), String> {
     let path = groups_file_path(app)?;
     let json = serde_json::to_string_pretty(groups).map_err(|e| format!("序列化分组失败: {e}"))?;
     fs::write(path, json).map_err(|e| format!("写入分组文件失败: {e}"))
+}
+
+pub fn groups_file_path_display(app: &AppHandle) -> Result<String, String> {
+    Ok(groups_file_path(app)?.to_string_lossy().to_string())
+}
+
+pub fn export_groups_to_path(app: &AppHandle, target_path: &str) -> Result<ExportGroupsResult, String> {
+    let target_path = target_path.trim();
+    if target_path.is_empty() {
+        return Err("导出路径不能为空".to_string());
+    }
+
+    let groups = load_groups(app)?;
+    let file_count = groups.values().map(|files| files.len() as u32).sum();
+    let json = serde_json::to_string_pretty(&groups).map_err(|e| format!("序列化分组失败: {e}"))?;
+    fs::write(target_path, json).map_err(|e| format!("导出分组失败: {e}"))?;
+
+    Ok(ExportGroupsResult {
+        group_count: groups.len() as u32,
+        file_count,
+        path: target_path.to_string(),
+    })
+}
+
+pub fn import_groups_from_path(app: &AppHandle, source_path: &str) -> Result<ImportGroupsResult, String> {
+    let source_path = source_path.trim();
+    if source_path.is_empty() {
+        return Err("导入路径不能为空".to_string());
+    }
+
+    let content = fs::read_to_string(source_path).map_err(|e| format!("读取导入文件失败: {e}"))?;
+    let raw = serde_json::from_str::<Groups>(&content).map_err(|e| format!("解析导入文件失败: {e}"))?;
+    let mut groups = load_groups(app)?;
+    let existing = groups.keys().cloned().collect::<HashSet<_>>();
+    let prepared = prepare_import_groups(raw, &existing)?;
+
+    for (name, files) in prepared.groups {
+        groups.insert(name, files);
+    }
+
+    write_groups(app, &groups)?;
+    Ok(ImportGroupsResult {
+        group_count: prepared.group_count,
+        file_count: prepared.file_count,
+        skipped_groups: prepared.skipped_groups,
+        path: source_path.to_string(),
+    })
+}
+
+pub fn open_data_dir(app: &AppHandle) -> Result<String, String> {
+    let dir = groups_data_dir(app)?;
+    open_path(&dir)?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+fn open_path(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(path)
+            .status()
+            .map_err(|e| format!("打开数据目录失败: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|e| format!("打开数据目录失败: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .status()
+            .map_err(|e| format!("打开数据目录失败: {e}"))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("当前平台不支持打开数据目录".to_string())
 }
 
 pub fn save_group(app: &AppHandle, name: &str, files: &[String]) -> Result<(), String> {

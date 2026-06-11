@@ -1,13 +1,15 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import './App.css';
+import { ActionMenu } from './components/ActionMenu';
 import { CurrentFilePanel } from './components/CurrentFilePanel';
 import { EditGroupModal } from './components/EditGroupModal';
 import { GroupPanel } from './components/GroupPanel';
 import { OpenFailuresModal } from './components/OpenFailuresModal';
 import { SaveGroupModal } from './components/SaveGroupModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { tokens } from './design-tokens';
 import { getFileName, mergeAndDedupeFiles, normalizeIdentity } from './file-utils';
 import { useThemeTransition } from './hooks/useThemeTransition';
@@ -47,6 +49,7 @@ function App() {
 
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [failuresModalOpen, setFailuresModalOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
 
   const notify = useCallback((message: string, tone: StatusTone = 'neutral') => {
     setStatus({ message, tone });
@@ -196,7 +199,7 @@ function App() {
     };
   }, [addFilesToSelection, notify, refreshGroupStats]);
 
-  const handleSelectFiles = async () => {
+  const handleSelectFiles = useCallback(async () => {
     try {
       const result = await open({
         multiple: true,
@@ -215,7 +218,7 @@ function App() {
       console.error(error);
       notify(`选择文件失败: ${String(error)}`, 'danger');
     }
-  };
+  }, [addFilesToSelection, notify]);
 
   const handleToggleFileChecked = (file: string) => {
     const key = normalizeIdentity(file);
@@ -285,7 +288,7 @@ function App() {
     notify('已移除选中文件', 'success');
   };
 
-  const handleOpenSelectedFiles = async () => {
+  const handleOpenSelectedFiles = useCallback(async () => {
     if (filesToOpen.length === 0) {
       notify('没有可打开的文件', 'neutral');
       return;
@@ -298,7 +301,7 @@ function App() {
       console.error(error);
       notify(`打开文件失败: ${String(error)}`, 'danger');
     }
-  };
+  }, [filesToOpen, notify, recordOpenResult]);
 
   const handleSaveGroup = async () => {
     if (selectedFiles.length === 0) {
@@ -357,6 +360,33 @@ function App() {
     } catch (error) {
       console.error(error);
       notify(`打开文件组失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const handleLoadGroup = (name: string) => {
+    const files = groups[name] ?? [];
+    if (files.length === 0) {
+      notify('该文件组没有文件', 'neutral');
+      return;
+    }
+
+    addFilesToSelection(files);
+    notify(`已载入文件组“${name}”中的 ${files.length} 个文件`, 'success');
+  };
+
+  const handleCopyGroupPaths = async (name: string) => {
+    const files = groups[name] ?? [];
+    if (files.length === 0) {
+      notify('该文件组没有可复制的文件', 'neutral');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(files.join('\n'));
+      notify(`已复制文件组“${name}”的 ${files.length} 个路径`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`复制文件组路径失败: ${String(error)}`, 'danger');
     }
   };
 
@@ -476,6 +506,169 @@ function App() {
     }
   };
 
+  const copyCurrentFilePaths = useCallback(async () => {
+    if (filesToOpen.length === 0) {
+      notify('没有可复制的文件路径', 'neutral');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(filesToOpen.join('\n'));
+      notify(`已复制 ${filesToOpen.length} 个文件路径`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`复制文件路径失败: ${String(error)}`, 'danger');
+    }
+  }, [filesToOpen, notify]);
+
+  const clearFileList = () => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    setSelectedFiles([]);
+    setCheckedFiles(new Set());
+    notify('已清空当前文件列表', 'success');
+  };
+
+  const handleRefreshGroups = async () => {
+    try {
+      await refreshGroups();
+      notify('文件组已刷新', 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`刷新文件组失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const handleExportGroups = async () => {
+    if (Object.keys(groups).length === 0) {
+      notify('暂无可导出的文件组', 'neutral');
+      return;
+    }
+
+    try {
+      const targetPath = await save({
+        title: '导出文件组备份',
+        defaultPath: 'file_groups_backup.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (!targetPath) {
+        return;
+      }
+
+      const result = await api.exportGroupsToPath(targetPath);
+      notify(`已导出 ${result.groupCount} 个文件组 / ${result.fileCount} 个文件`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`导出文件组失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const handleImportGroups = async () => {
+    try {
+      const sourcePath = await open({
+        multiple: false,
+        directory: false,
+        title: '导入文件组备份',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (!sourcePath || Array.isArray(sourcePath)) {
+        return;
+      }
+
+      const result = await api.importGroupsFromPath(sourcePath);
+      await refreshGroups();
+      const skippedText = result.skippedGroups > 0 ? `，跳过 ${result.skippedGroups} 个无效分组` : '';
+      notify(`已导入 ${result.groupCount} 个文件组 / ${result.fileCount} 个文件${skippedText}`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`导入文件组失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const handleOpenDataDir = async () => {
+    try {
+      const path = await api.openDataDir();
+      notify(`已打开数据目录: ${path}`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`打开数据目录失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTextInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        Boolean(target?.isContentEditable);
+      const key = event.key.toLowerCase();
+      const control = event.ctrlKey || event.metaKey;
+
+      if (event.key === 'Escape') {
+        if (shortcutsModalOpen) {
+          setShortcutsModalOpen(false);
+        } else if (failuresModalOpen) {
+          setFailuresModalOpen(false);
+        } else if (editModal.open) {
+          setEditModal(EMPTY_EDIT_MODAL);
+        } else if (saveModalOpen) {
+          setSaveModalOpen(false);
+        } else if (deleteTarget) {
+          setDeleteTarget(null);
+        }
+        return;
+      }
+
+      if (isTextInput || !control) {
+        return;
+      }
+
+      if (key === 'o') {
+        event.preventDefault();
+        void handleSelectFiles();
+        return;
+      }
+
+      if (key === 's') {
+        event.preventDefault();
+        if (selectedFiles.length > 0) {
+          setSaveModalOpen(true);
+        } else {
+          notify('当前没有可保存的文件', 'neutral');
+        }
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void handleOpenSelectedFiles();
+        return;
+      }
+
+      if (event.shiftKey && key === 'c') {
+        event.preventDefault();
+        void copyCurrentFilePaths();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    copyCurrentFilePaths,
+    deleteTarget,
+    editModal.open,
+    failuresModalOpen,
+    handleOpenSelectedFiles,
+    handleSelectFiles,
+    notify,
+    saveModalOpen,
+    shortcutsModalOpen,
+    selectedFiles.length
+  ]);
+
   return (
     <div
       className={`app theme-${themeMode}`}
@@ -513,6 +706,13 @@ function App() {
           <div className={`status-chip status-${status.tone}`} title={status.message}>
             {status.message}
           </div>
+          <ActionMenu
+            label="帮助"
+            title="帮助与快捷键"
+            items={[
+              { label: '查看快捷键', onClick: () => setShortcutsModalOpen(true) }
+            ]}
+          />
           {failedFiles.length > 0 && (
             <button className="mini-btn status-action" onClick={() => setFailuresModalOpen(true)}>
               查看失败文件
@@ -535,6 +735,8 @@ function App() {
           onSelectAllFilteredFiles={selectAllFilteredFiles}
           onInvertFilteredSelection={invertFilteredSelection}
           onClearSelection={clearSelection}
+          onCopySelectedPaths={copyCurrentFilePaths}
+          onClearFileList={clearFileList}
           onToggleFileChecked={handleToggleFileChecked}
           onRemoveSelectedFiles={handleRemoveSelectedFiles}
           onOpenSelectedFiles={handleOpenSelectedFiles}
@@ -549,8 +751,14 @@ function App() {
           onGroupKeywordChange={setGroupKeyword}
           onExpandAllVisibleGroups={expandAllVisibleGroups}
           onCollapseAllGroups={collapseAllGroups}
+          onRefreshGroups={handleRefreshGroups}
+          onExportGroups={handleExportGroups}
+          onImportGroups={handleImportGroups}
+          onOpenDataDir={handleOpenDataDir}
           onToggleGroup={handleToggleGroup}
           onOpenGroup={handleOpenGroup}
+          onLoadGroup={handleLoadGroup}
+          onCopyGroup={handleCopyGroupPaths}
           onEditGroup={openEditModal}
           onDeleteGroup={setDeleteTarget}
         />
@@ -596,6 +804,10 @@ function App() {
           onCopy={copyFailedFiles}
           onClose={() => setFailuresModalOpen(false)}
         />
+      )}
+
+      {shortcutsModalOpen && (
+        <ShortcutsModal onClose={() => setShortcutsModalOpen(false)} />
       )}
     </div>
   );
