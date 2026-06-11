@@ -2,6 +2,7 @@ import { ActionMenu } from './ActionMenu';
 import { getFileIcon, getFileName, normalizeIdentity } from '../file-utils';
 
 import iconOpen from '../assets/icons/fluent/open.png';
+import iconRemove from '../assets/icons/fluent/remove.png';
 import iconSaveGroup from '../assets/icons/fluent/save-group.png';
 import iconSelectFiles from '../assets/icons/fluent/select-files.png';
 
@@ -76,13 +77,7 @@ export function CurrentFilePanel({
               { label: '反选筛选', onClick: onInvertFilteredSelection, disabled: filteredFiles.length === 0 },
               { label: '清空勾选', onClick: onClearSelection, disabled: checkedCount === 0 },
               { label: '复制路径', onClick: onCopySelectedPaths, disabled: selectedFiles.length === 0 },
-              { label: '清空列表', onClick: onClearFileList, disabled: selectedFiles.length === 0 },
-              {
-                label: '移除选中',
-                onClick: onRemoveSelectedFiles,
-                disabled: checkedCount === 0,
-                tone: 'danger'
-              }
+              { label: '清空列表', onClick: onClearFileList, disabled: selectedFiles.length === 0 }
             ]}
           />
         </div>
@@ -120,6 +115,10 @@ export function CurrentFilePanel({
       </div>
 
       <div className="toolbar file-action-toolbar">
+        <button className="btn btn-danger" onClick={onRemoveSelectedFiles} disabled={checkedCount === 0}>
+          <img src={iconRemove} alt="" />
+          移除选中
+        </button>
         <button className="btn btn-success" onClick={onOpenSelectedFiles} disabled={selectedFiles.length === 0}>
           <img src={iconOpen} alt="" />
           打开文件
