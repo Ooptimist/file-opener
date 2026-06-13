@@ -107,6 +107,8 @@ export function ActionMenu({ label = '更多', title, align = 'right', items }: 
           ref={menuRef}
           role="menu"
           style={{
+            backdropFilter: 'blur(34px) saturate(170%)',
+            WebkitBackdropFilter: 'blur(34px) saturate(170%)',
             left: `${menuPosition.left}px`,
             top: `${menuPosition.top}px`
           }}

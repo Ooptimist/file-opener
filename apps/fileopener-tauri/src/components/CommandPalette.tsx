@@ -64,12 +64,23 @@ export function CommandPalette({ items, onClose }: CommandPaletteProps) {
   };
 
   return (
-    <div className="command-backdrop" onMouseDown={onClose}>
+    <div
+      className="command-backdrop"
+      style={{
+        backdropFilter: 'blur(14px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(130%)'
+      }}
+      onMouseDown={onClose}
+    >
       <div
         className="command-palette"
         role="dialog"
         aria-modal="true"
         aria-label="指令中心"
+        style={{
+          backdropFilter: 'blur(28px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(160%)'
+        }}
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >

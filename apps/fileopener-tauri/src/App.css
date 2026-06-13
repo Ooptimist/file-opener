@@ -1102,6 +1102,8 @@ body {
 }
 
 .action-menu-panel {
+  --action-menu-backdrop-filter: blur(34px) saturate(170%);
+
   position: fixed;
   z-index: 1000;
   width: max-content;
@@ -1113,8 +1115,8 @@ body {
   background:
     linear-gradient(180deg, rgba(38, 42, 49, 0.78), rgba(25, 28, 33, 0.74));
   box-shadow: 0 22px 52px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.03), var(--inset-shadow);
-  backdrop-filter: blur(34px) saturate(170%);
-  -webkit-backdrop-filter: blur(34px) saturate(170%);
+  backdrop-filter: var(--action-menu-backdrop-filter);
+  -webkit-backdrop-filter: var(--action-menu-backdrop-filter);
   animation: menu-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
