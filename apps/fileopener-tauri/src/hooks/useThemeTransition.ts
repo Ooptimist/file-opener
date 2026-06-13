@@ -1,4 +1,7 @@
-import { type MouseEvent, useState } from 'react';
+import { type MouseEvent, useEffect, useState } from 'react';
+import { setTheme as setAppTheme } from '@tauri-apps/api/app';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getInitialThemeMode, toNativeWindowTheme } from '../theme-utils';
 import type { ThemeMode } from '../types';
 
 type ViewTransitionDocument = Document & {
@@ -9,8 +12,7 @@ type ViewTransitionDocument = Document & {
 };
 
 function getInitialTheme(): ThemeMode {
-  const savedTheme = window.localStorage.getItem('fileopener-theme');
-  return savedTheme === 'light' ? 'light' : 'dark';
+  return getInitialThemeMode(window.localStorage.getItem('fileopener-theme'));
 }
 
 function getThemeRevealRadius(x: number, y: number) {
@@ -21,15 +23,28 @@ export function useThemeTransition() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
   const [themeAnimating, setThemeAnimating] = useState(false);
 
-  const toggleThemeMode = (event: MouseEvent<HTMLButtonElement>) => {
+  useEffect(() => {
+    const nativeTheme = toNativeWindowTheme(themeMode);
+
+    try {
+      void Promise.all([
+        setAppTheme(nativeTheme).catch(() => undefined),
+        getCurrentWindow().setTheme(nativeTheme).catch(() => undefined)
+      ]);
+    } catch {
+      // Browser preview does not expose the Tauri window API.
+    }
+  }, [themeMode]);
+
+  const toggleThemeMode = (event?: MouseEvent<HTMLButtonElement>) => {
     if (themeAnimating) {
       return;
     }
 
     const next = themeMode === 'dark' ? 'light' : 'dark';
-    const rect = event.currentTarget.getBoundingClientRect();
-    const originX = rect.left + rect.width / 2;
-    const originY = rect.top + rect.height / 2;
+    const rect = event?.currentTarget.getBoundingClientRect();
+    const originX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const originY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
 
     const applyTheme = () => {
       setThemeMode(next);

@@ -13,6 +13,7 @@ type GroupPanelProps = {
   groupStats: Record<string, GroupStats>;
   filteredGroupEntries: [string, string[]][];
   expandedGroups: Set<string>;
+  favoriteGroups: string[];
   groupKeyword: string;
   onGroupKeywordChange: (value: string) => void;
   onExpandAllVisibleGroups: () => void;
@@ -25,6 +26,7 @@ type GroupPanelProps = {
   onOpenGroup: (name: string) => void;
   onLoadGroup: (name: string) => void;
   onCopyGroup: (name: string) => void;
+  onToggleFavoriteGroup: (name: string) => void;
   onEditGroup: (name: string) => void;
   onDeleteGroup: (name: string) => void;
 };
@@ -34,6 +36,7 @@ export function GroupPanel({
   groupStats,
   filteredGroupEntries,
   expandedGroups,
+  favoriteGroups,
   groupKeyword,
   onGroupKeywordChange,
   onExpandAllVisibleGroups,
@@ -46,6 +49,7 @@ export function GroupPanel({
   onOpenGroup,
   onLoadGroup,
   onCopyGroup,
+  onToggleFavoriteGroup,
   onEditGroup,
   onDeleteGroup
 }: GroupPanelProps) {
@@ -64,10 +68,24 @@ export function GroupPanel({
           onChange={(event) => onGroupKeywordChange(event.target.value)}
         />
         <div className="inline-actions">
+          <button
+            className="mini-btn"
+            type="button"
+            onClick={onExpandAllVisibleGroups}
+            disabled={filteredGroupEntries.length === 0}
+          >
+            展开全部
+          </button>
+          <button
+            className="mini-btn"
+            type="button"
+            onClick={onCollapseAllGroups}
+            disabled={expandedGroups.size === 0}
+          >
+            折叠全部
+          </button>
           <ActionMenu
             items={[
-              { label: '展开全部', onClick: onExpandAllVisibleGroups, disabled: filteredGroupEntries.length === 0 },
-              { label: '折叠全部', onClick: onCollapseAllGroups, disabled: expandedGroups.size === 0 },
               { label: '刷新', onClick: onRefreshGroups },
               { label: '导出', onClick: onExportGroups, disabled: Object.keys(groups).length === 0 },
               { label: '导入', onClick: onImportGroups },
@@ -120,6 +138,10 @@ export function GroupPanel({
                       items={[
                         { label: '载入到当前列表', onClick: () => onLoadGroup(name) },
                         { label: '复制路径', onClick: () => onCopyGroup(name) },
+                        {
+                          label: favoriteGroups.includes(name) ? '取消星标' : '加入星标 Dock',
+                          onClick: () => onToggleFavoriteGroup(name)
+                        },
                         { label: '编辑', onClick: () => onEditGroup(name), icon: iconEdit },
                         { label: '删除', onClick: () => onDeleteGroup(name), icon: iconRemove, tone: 'danger' }
                       ]}

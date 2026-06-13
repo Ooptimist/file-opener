@@ -1,6 +1,7 @@
 ﻿import { invoke } from '@tauri-apps/api/core';
 import type {
   ExportGroupsResult,
+  GroupHealthReport,
   GroupStats,
   GroupsRecord,
   ImportGroupsResult,
@@ -17,6 +18,7 @@ export const api = {
   updateGroupFiles: (name: string, files: string[]) =>
     invoke<void>('update_group_files', { name, files }),
   getGroupStats: (name: string) => invoke<GroupStats>('get_group_stats', { name }),
+  getGroupsHealth: () => invoke<GroupHealthReport>('get_groups_health'),
   openFiles: (files: string[]) => invoke<OpenFilesResult>('open_files', { files }),
   migrateLegacyGroups: () => invoke<MigrationResult>('migrate_legacy_groups'),
   getGroupsFilePath: () => invoke<string>('get_groups_file_path'),

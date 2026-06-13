@@ -4,7 +4,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 use services::file_open_service::{open_files as open_files_service, OpenFilesResult};
-use services::group_service::{self as group, ExportGroupsResult, ImportGroupsResult};
+use services::group_service::{self as group, ExportGroupsResult, GroupHealthReport, ImportGroupsResult};
 use services::migration_service::{migrate_legacy_groups as migrate_legacy_groups_service, MigrationResult};
 
 #[derive(Serialize)]
@@ -42,6 +42,11 @@ fn update_group_files(app: AppHandle, name: String, files: Vec<String>) -> Resul
 fn get_group_stats(app: AppHandle, name: String) -> Result<GroupStats, String> {
     let (existing, total) = group::group_stats(&app, &name)?;
     Ok(GroupStats { existing, total })
+}
+
+#[tauri::command]
+fn get_groups_health(app: AppHandle) -> Result<GroupHealthReport, String> {
+    group::groups_health(&app)
 }
 
 #[tauri::command]
@@ -96,6 +101,7 @@ pub fn run() {
             delete_group,
             update_group_files,
             get_group_stats,
+            get_groups_health,
             open_files,
             migrate_legacy_groups,
             get_groups_file_path,

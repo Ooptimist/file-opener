@@ -29,6 +29,28 @@ pub struct ImportGroupsResult {
     pub path: String,
 }
 
+#[derive(serde::Serialize)]
+pub struct GroupHealthItem {
+    pub name: String,
+    pub existing: u32,
+    pub total: u32,
+    #[serde(rename = "missingFiles")]
+    pub missing_files: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct GroupHealthReport {
+    #[serde(rename = "groupCount")]
+    pub group_count: u32,
+    #[serde(rename = "fileCount")]
+    pub file_count: u32,
+    #[serde(rename = "existingCount")]
+    pub existing_count: u32,
+    #[serde(rename = "missingCount")]
+    pub missing_count: u32,
+    pub groups: Vec<GroupHealthItem>,
+}
+
 struct PreparedImport {
     groups: Groups,
     group_count: u32,
@@ -199,6 +221,48 @@ fn prepare_import_groups(raw: Groups, existing_names: &HashSet<String>) -> Resul
     })
 }
 
+pub fn build_health_report(groups: &Groups) -> Result<GroupHealthReport, String> {
+    let mut report_groups = Vec::new();
+    let mut file_count = 0_u32;
+    let mut existing_count = 0_u32;
+    let mut missing_count = 0_u32;
+
+    for (name, files) in groups {
+        let mut existing = 0_u32;
+        let mut missing_files = Vec::new();
+
+        for file in files {
+            let Some(normalized) = normalize_file_path(file)? else {
+                continue;
+            };
+
+            file_count += 1;
+            if PathBuf::from(&normalized).exists() {
+                existing += 1;
+                existing_count += 1;
+            } else {
+                missing_count += 1;
+                missing_files.push(normalized);
+            }
+        }
+
+        report_groups.push(GroupHealthItem {
+            name: name.clone(),
+            existing,
+            total: files.len() as u32,
+            missing_files,
+        });
+    }
+
+    Ok(GroupHealthReport {
+        group_count: groups.len() as u32,
+        file_count,
+        existing_count,
+        missing_count,
+        groups: report_groups,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +340,32 @@ mod tests {
         assert_eq!(prepared.group_count, 1);
         assert_eq!(prepared.file_count, 1);
         assert!(prepared.groups.contains_key("docs (导入)"));
+    }
+
+    #[test]
+    fn build_health_report_separates_existing_and_missing_files() {
+        let existing = std::env::current_dir()
+            .expect("cwd")
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .to_string();
+        let mut groups = Groups::new();
+        groups.insert(
+            "workspace".to_string(),
+            vec![existing.clone(), ".\\definitely-missing-health-test.file".to_string()],
+        );
+
+        let report = build_health_report(&groups).expect("health report");
+
+        assert_eq!(report.group_count, 1);
+        assert_eq!(report.file_count, 2);
+        assert_eq!(report.existing_count, 1);
+        assert_eq!(report.missing_count, 1);
+        assert_eq!(report.groups[0].name, "workspace");
+        assert_eq!(report.groups[0].existing, 1);
+        assert_eq!(report.groups[0].total, 2);
+        assert_eq!(report.groups[0].missing_files.len(), 1);
+        assert!(report.groups[0].missing_files[0].ends_with("definitely-missing-health-test.file"));
     }
 }
 
@@ -460,6 +550,11 @@ pub fn group_stats(app: &AppHandle, name: &str) -> Result<(u32, u32), String> {
     }
 
     Ok((existing, total))
+}
+
+pub fn groups_health(app: &AppHandle) -> Result<GroupHealthReport, String> {
+    let groups = load_groups(app)?;
+    build_health_report(&groups)
 }
 
 pub fn dedupe_for_open(files: &[String]) -> Result<Vec<String>, String> {

@@ -12,5 +12,13 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["src/file-utils.ts", "src/*.test.ts"]
+  "include": [
+    "src/file-utils.ts",
+    "src/command-palette-utils.ts",
+    "src/smart-group-utils.ts",
+    "src/recent-activity-utils.ts",
+    "src/favorite-group-utils.ts",
+    "src/theme-utils.ts",
+    "src/*.test.ts"
+  ]
 }

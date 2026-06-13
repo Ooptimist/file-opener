@@ -22,6 +22,21 @@ export type GroupStats = {
   total: number;
 };
 
+export type GroupHealthItem = {
+  name: string;
+  existing: number;
+  total: number;
+  missingFiles: string[];
+};
+
+export type GroupHealthReport = {
+  groupCount: number;
+  fileCount: number;
+  existingCount: number;
+  missingCount: number;
+  groups: GroupHealthItem[];
+};
+
 export type OpenFilesResult = {
   successCount: number;
   failedFiles: string[];

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.test.json && node ./node_modules/.tmp/test-dist/file-utils.test.js",
+    "test": "tsc -p tsconfig.test.json && node ./node_modules/.tmp/test-dist/file-utils.test.js && node ./node_modules/.tmp/test-dist/command-palette-utils.test.js && node ./node_modules/.tmp/test-dist/smart-group-utils.test.js && node ./node_modules/.tmp/test-dist/recent-activity-utils.test.js && node ./node_modules/.tmp/test-dist/favorite-group-utils.test.js && node ./node_modules/.tmp/test-dist/action-menu-utils.test.js && node ./node_modules/.tmp/test-dist/theme-utils.test.js",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"

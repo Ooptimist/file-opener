@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { getActionMenuPosition, type ActionMenuAlign } from '../action-menu-utils';
 
 export type ActionMenuItem = {
   label: string;
@@ -11,13 +13,44 @@ export type ActionMenuItem = {
 type ActionMenuProps = {
   label?: string;
   title?: string;
-  align?: 'left' | 'right';
+  align?: ActionMenuAlign;
   items: ActionMenuItem[];
 };
 
 export function ActionMenu({ label = '更多', title, align = 'right', items }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    setMenuPosition(getActionMenuPosition({
+      align,
+      menuHeight: menuRef.current?.offsetHeight ?? 184,
+      menuWidth: menuRef.current?.offsetWidth ?? 150,
+      triggerRect: {
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right
+      },
+      triggerTop: rect.top,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth
+    }));
+  }, [align]);
+
+  useLayoutEffect(() => {
+    if (open) {
+      updateMenuPosition();
+    }
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) {
@@ -25,7 +58,8 @@ export function ActionMenu({ label = '更多', title, align = 'right', items }: 
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) {
         setOpen(false);
       }
     };
@@ -38,11 +72,15 @@ export function ActionMenu({ label = '更多', title, align = 'right', items }: 
 
     window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open]);
+  }, [open, updateMenuPosition]);
 
   return (
     <div className="action-menu" ref={rootRef}>
@@ -51,14 +89,28 @@ export function ActionMenu({ label = '更多', title, align = 'right', items }: 
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        ref={triggerRef}
         title={title ?? label}
-        onClick={() => setOpen((previous) => !previous)}
+        onClick={() => {
+          if (!open) {
+            updateMenuPosition();
+          }
+          setOpen((previous) => !previous);
+        }}
       >
         {label}
       </button>
 
-      {open && (
-        <div className={`action-menu-panel action-menu-${align}`} role="menu">
+      {open && createPortal(
+        <div
+          className={`action-menu-panel action-menu-${align}`}
+          ref={menuRef}
+          role="menu"
+          style={{
+            left: `${menuPosition.left}px`,
+            top: `${menuPosition.top}px`
+          }}
+        >
           {items.map((item) => (
             <button
               className={`action-menu-item${item.tone === 'danger' ? ' danger' : ''}`}
@@ -78,7 +130,8 @@ export function ActionMenu({ label = '更多', title, align = 'right', items }: 
               <span>{item.label}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

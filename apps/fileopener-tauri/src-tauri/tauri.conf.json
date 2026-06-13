@@ -17,6 +17,8 @@
         "height": 1000,
         "minWidth": 1000,
         "minHeight": 700,
+        "decorations": false,
+        "shadow": true,
         "resizable": true,
         "fullscreen": false
       }

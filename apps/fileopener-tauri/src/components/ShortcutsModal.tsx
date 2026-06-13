@@ -3,6 +3,7 @@ type ShortcutsModalProps = {
 };
 
 const SHORTCUTS = [
+  ['Ctrl + K', '打开指令中心'],
   ['Ctrl + O', '选择文件'],
   ['Ctrl + S', '保存当前文件列表为文件组'],
   ['Ctrl + Enter', '打开当前文件列表'],

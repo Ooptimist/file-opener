@@ -3,18 +3,33 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import './App.css';
-import { ActionMenu } from './components/ActionMenu';
+import { CommandPalette, type CommandPaletteItem } from './components/CommandPalette';
 import { CurrentFilePanel } from './components/CurrentFilePanel';
 import { EditGroupModal } from './components/EditGroupModal';
+import { FavoriteGroupsDock } from './components/FavoriteGroupsDock';
 import { GroupPanel } from './components/GroupPanel';
+import { HealthCenterModal } from './components/HealthCenterModal';
 import { OpenFailuresModal } from './components/OpenFailuresModal';
+import { RecentActivityModal } from './components/RecentActivityModal';
 import { SaveGroupModal } from './components/SaveGroupModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { WindowTitleBar } from './components/WindowTitleBar';
 import { tokens } from './design-tokens';
+import {
+  getFavoriteGroupEntries,
+  pruneFavoriteGroups,
+  toggleFavoriteGroup
+} from './favorite-group-utils';
 import { getFileName, mergeAndDedupeFiles, normalizeIdentity } from './file-utils';
 import { useThemeTransition } from './hooks/useThemeTransition';
+import {
+  addRecentActivity,
+  createRecentActivity,
+  type RecentActivityItem
+} from './recent-activity-utils';
+import { deriveSmartGroupSuggestions, type SmartGroupSuggestion } from './smart-group-utils';
 import { api } from './tauri-api';
-import type { EditModalState, GroupStats, GroupsRecord, StatusState, StatusTone } from './types';
+import type { EditModalState, GroupHealthReport, GroupStats, GroupsRecord, StatusState, StatusTone } from './types';
 
 const EMPTY_EDIT_MODAL: EditModalState = {
   open: false,
@@ -23,6 +38,35 @@ const EMPTY_EDIT_MODAL: EditModalState = {
   files: [],
   checked: new Set()
 };
+
+const RECENT_ACTIVITY_STORAGE_KEY = 'fileopener-recent-activity';
+const FAVORITE_GROUPS_STORAGE_KEY = 'fileopener-favorite-groups';
+
+function loadRecentActivities() {
+  try {
+    const raw = window.localStorage.getItem(RECENT_ACTIVITY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as RecentActivityItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadFavoriteGroups() {
+  try {
+    const raw = window.localStorage.getItem(FAVORITE_GROUPS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as string[];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function App() {
   const { themeMode, themeAnimating, toggleThemeMode } = useThemeTransition();
@@ -50,10 +94,25 @@ function App() {
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [failuresModalOpen, setFailuresModalOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthReport, setHealthReport] = useState<GroupHealthReport | null>(null);
+  const [recentModalOpen, setRecentModalOpen] = useState(false);
+  const [recentActivities, setRecentActivities] = useState<RecentActivityItem[]>(loadRecentActivities);
+  const [favoriteGroups, setFavoriteGroups] = useState<string[]>(loadFavoriteGroups);
 
   const notify = useCallback((message: string, tone: StatusTone = 'neutral') => {
     setStatus({ message, tone });
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(RECENT_ACTIVITY_STORAGE_KEY, JSON.stringify(recentActivities));
+  }, [recentActivities]);
+
+  useEffect(() => {
+    window.localStorage.setItem(FAVORITE_GROUPS_STORAGE_KEY, JSON.stringify(favoriteGroups));
+  }, [favoriteGroups]);
 
   const filteredFiles = useMemo(() => {
     const keyword = fileKeyword.trim().toLowerCase();
@@ -83,6 +142,10 @@ function App() {
   }, [groups, groupKeyword]);
 
   const checkedCount = checkedFiles.size;
+  const missingGroupFileCount = Object.values(groupStats).reduce(
+    (total, stats) => total + Math.max(stats.total - stats.existing, 0),
+    0
+  );
 
   const filesToOpen = useMemo(() => {
     if (checkedFiles.size === 0) {
@@ -90,6 +153,21 @@ function App() {
     }
     return selectedFiles.filter((file) => checkedFiles.has(normalizeIdentity(file)));
   }, [selectedFiles, checkedFiles]);
+
+  const smartSuggestions = useMemo(
+    () => deriveSmartGroupSuggestions(selectedFiles).slice(0, 4),
+    [selectedFiles]
+  );
+
+  const favoriteGroupEntries = useMemo(
+    () => getFavoriteGroupEntries(favoriteGroups, groups),
+    [favoriteGroups, groups]
+  );
+
+  const visibleFavoriteGroups = useMemo(
+    () => pruneFavoriteGroups(favoriteGroups, groups),
+    [favoriteGroups, groups]
+  );
 
   const refreshGroupStats = useCallback(async (nextGroups: GroupsRecord) => {
     const names = Object.keys(nextGroups);
@@ -120,6 +198,10 @@ function App() {
     }
 
     setSelectedFiles((previous) => mergeAndDedupeFiles(previous, files));
+  }, []);
+
+  const rememberRecentActivity = useCallback((kind: 'current' | 'group', title: string, files: string[]) => {
+    setRecentActivities((previous) => addRecentActivity(createRecentActivity(kind, title, files), previous));
   }, []);
 
   const recordOpenResult = useCallback((successCount: number, nextFailedFiles: string[]) => {
@@ -288,6 +370,22 @@ function App() {
     notify('已移除选中文件', 'success');
   };
 
+  const selectSmartSuggestion = (suggestion: SmartGroupSuggestion) => {
+    setCheckedFiles(new Set(suggestion.files.map((file) => normalizeIdentity(file))));
+    notify(`已勾选“${suggestion.title}”中的 ${suggestion.count} 个文件`, 'success');
+  };
+
+  const saveSmartSuggestion = async (suggestion: SmartGroupSuggestion) => {
+    try {
+      await api.saveGroup(suggestion.title, suggestion.files);
+      await refreshGroups();
+      notify(`已保存智能文件组“${suggestion.title}”`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`保存智能文件组失败: ${String(error)}`, 'danger');
+    }
+  };
+
   const handleOpenSelectedFiles = useCallback(async () => {
     if (filesToOpen.length === 0) {
       notify('没有可打开的文件', 'neutral');
@@ -296,12 +394,13 @@ function App() {
 
     try {
       const result = await api.openFiles(filesToOpen);
+      rememberRecentActivity('current', '当前文件列表', filesToOpen);
       recordOpenResult(result.successCount, result.failedFiles);
     } catch (error) {
       console.error(error);
       notify(`打开文件失败: ${String(error)}`, 'danger');
     }
-  }, [filesToOpen, notify, recordOpenResult]);
+  }, [filesToOpen, notify, recordOpenResult, rememberRecentActivity]);
 
   const handleSaveGroup = async () => {
     if (selectedFiles.length === 0) {
@@ -356,6 +455,7 @@ function App() {
 
     try {
       const result = await api.openFiles(files);
+      rememberRecentActivity('group', name, files);
       recordOpenResult(result.successCount, result.failedFiles);
     } catch (error) {
       console.error(error);
@@ -390,6 +490,12 @@ function App() {
     }
   };
 
+  const handleToggleFavoriteGroup = (name: string) => {
+    const nextFavorite = !favoriteGroups.includes(name);
+    setFavoriteGroups((previous) => toggleFavoriteGroup(previous, name));
+    notify(nextFavorite ? `已将“${name}”加入星标 Dock` : `已取消“${name}”星标`, 'success');
+  };
+
   const handleDeleteGroup = async () => {
     if (!deleteTarget) {
       return;
@@ -397,6 +503,7 @@ function App() {
 
     try {
       await api.deleteGroup(deleteTarget);
+      setFavoriteGroups((previous) => previous.filter((name) => name !== deleteTarget));
       setDeleteTarget(null);
       await refreshGroups();
       notify(`文件组“${deleteTarget}”已删除`, 'success');
@@ -597,6 +704,245 @@ function App() {
     }
   };
 
+  const refreshHealthReport = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const report = await api.getGroupsHealth();
+      setHealthReport(report);
+      notify(
+        report.missingCount > 0
+          ? `健康扫描完成，发现 ${report.missingCount} 个缺失路径`
+          : '健康扫描完成，未发现缺失路径',
+        report.missingCount > 0 ? 'danger' : 'success'
+      );
+    } catch (error) {
+      console.error(error);
+      notify(`健康扫描失败: ${String(error)}`, 'danger');
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [notify]);
+
+  const openHealthCenter = useCallback(() => {
+    setHealthModalOpen(true);
+    void refreshHealthReport();
+  }, [refreshHealthReport]);
+
+  const copyMissingGroupPaths = async () => {
+    const missingFiles = healthReport?.groups.flatMap((group) => group.missingFiles) ?? [];
+    if (missingFiles.length === 0) {
+      notify('没有缺失路径可复制', 'neutral');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(missingFiles.join('\n'));
+      notify(`已复制 ${missingFiles.length} 个缺失路径`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`复制缺失路径失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const loadRecentActivity = (activity: RecentActivityItem) => {
+    addFilesToSelection(activity.files);
+    notify(`已载入最近任务“${activity.title}”`, 'success');
+  };
+
+  const openRecentActivity = async (activity: RecentActivityItem) => {
+    try {
+      const result = await api.openFiles(activity.files);
+      rememberRecentActivity(activity.kind, activity.title, activity.files);
+      recordOpenResult(result.successCount, result.failedFiles);
+    } catch (error) {
+      console.error(error);
+      notify(`打开最近任务失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const copyRecentActivityPaths = async (activity: RecentActivityItem) => {
+    try {
+      await navigator.clipboard.writeText(activity.files.join('\n'));
+      notify(`已复制最近任务“${activity.title}”的路径`, 'success');
+    } catch (error) {
+      console.error(error);
+      notify(`复制最近任务路径失败: ${String(error)}`, 'danger');
+    }
+  };
+
+  const clearRecentActivities = () => {
+    setRecentActivities([]);
+    notify('已清空最近任务时间线', 'neutral');
+  };
+
+  const commandItems: CommandPaletteItem[] = [
+    {
+      id: 'select-files',
+      title: '选择文件',
+      description: '添加文件到当前文件列表',
+      keywords: ['add', 'open', 'current'],
+      shortcut: 'Ctrl O',
+      onRun: () => void handleSelectFiles()
+    },
+    {
+      id: 'save-group',
+      title: '保存文件组',
+      description: selectedFiles.length > 0 ? '把当前列表保存为一个文件组' : '当前没有可保存的文件',
+      keywords: ['group', 'save'],
+      shortcut: 'Ctrl S',
+      disabled: selectedFiles.length === 0,
+      onRun: () => setSaveModalOpen(true)
+    },
+    {
+      id: 'open-current-files',
+      title: '打开当前文件',
+      description: checkedCount > 0 ? `打开 ${checkedCount} 个已勾选文件` : '未勾选时打开当前列表全部文件',
+      keywords: ['launch', 'run', 'open'],
+      shortcut: 'Ctrl Enter',
+      disabled: selectedFiles.length === 0,
+      tone: 'success',
+      onRun: () => void handleOpenSelectedFiles()
+    },
+    {
+      id: 'remove-checked-files',
+      title: '移除选中文件',
+      description: checkedCount > 0 ? `从当前列表移除 ${checkedCount} 个文件` : '请先勾选要移除的文件',
+      keywords: ['delete', 'remove', 'clean'],
+      disabled: checkedCount === 0,
+      tone: 'danger',
+      onRun: handleRemoveSelectedFiles
+    },
+    {
+      id: 'copy-current-paths',
+      title: '复制当前路径',
+      description: '复制已勾选文件路径，未勾选时复制全部路径',
+      keywords: ['copy', 'path', 'clipboard'],
+      shortcut: 'Ctrl Shift C',
+      disabled: filesToOpen.length === 0,
+      onRun: () => void copyCurrentFilePaths()
+    },
+    ...(smartSuggestions.length > 0
+      ? [{
+          id: 'save-smart-suggestion',
+          title: `保存智能建议：${smartSuggestions[0].title}`,
+          description: `将 ${smartSuggestions[0].count} 个文件直接保存为文件组`,
+          keywords: ['smart', 'suggestion', 'group'],
+          tone: 'success' as const,
+          onRun: () => void saveSmartSuggestion(smartSuggestions[0])
+        }]
+      : []),
+    {
+      id: 'clear-current-list',
+      title: '清空当前列表',
+      description: '移除当前文件列表里的所有文件',
+      keywords: ['clear', 'reset'],
+      disabled: selectedFiles.length === 0,
+      tone: 'danger',
+      onRun: clearFileList
+    },
+    {
+      id: 'expand-groups',
+      title: '展开可见文件组',
+      description: `展开当前筛选结果中的 ${filteredGroupEntries.length} 个文件组`,
+      keywords: ['expand', 'groups'],
+      disabled: filteredGroupEntries.length === 0,
+      onRun: expandAllVisibleGroups
+    },
+    {
+      id: 'collapse-groups',
+      title: '折叠全部文件组',
+      description: '收起所有已展开的文件组',
+      keywords: ['collapse', 'groups'],
+      disabled: expandedGroups.size === 0,
+      onRun: collapseAllGroups
+    },
+    {
+      id: 'refresh-groups',
+      title: '刷新文件组',
+      description: '重新读取文件组和存在性统计',
+      keywords: ['reload', 'sync'],
+      onRun: () => void handleRefreshGroups()
+    },
+    {
+      id: 'health-center',
+      title: '打开健康中心',
+      description: missingGroupFileCount > 0
+        ? `检查 ${missingGroupFileCount} 个缺失路径`
+        : '检查文件组路径可用性',
+      keywords: ['health', 'missing', 'scan', 'check'],
+      tone: missingGroupFileCount > 0 ? 'danger' : 'success',
+      onRun: openHealthCenter
+    },
+    {
+      id: 'recent-activity',
+      title: '打开最近任务时间线',
+      description: recentActivities.length > 0
+        ? `回到 ${recentActivities.length} 条最近任务`
+        : '查看最近打开过的文件列表和文件组',
+      keywords: ['recent', 'history', 'timeline'],
+      disabled: recentActivities.length === 0,
+      onRun: () => setRecentModalOpen(true)
+    },
+    ...(favoriteGroupEntries.length > 0
+      ? [{
+          id: 'open-first-favorite',
+          title: `打开星标文件组：${favoriteGroupEntries[0][0]}`,
+          description: `快速打开 Dock 中的 ${favoriteGroupEntries[0][1].length} 个文件`,
+          keywords: ['favorite', 'dock', 'star'],
+          tone: 'success' as const,
+          onRun: () => void handleOpenGroup(favoriteGroupEntries[0][0])
+        }]
+      : []),
+    {
+      id: 'import-groups',
+      title: '导入文件组',
+      description: '从 JSON 备份导入文件组',
+      keywords: ['import', 'json', 'backup'],
+      onRun: () => void handleImportGroups()
+    },
+    {
+      id: 'export-groups',
+      title: '导出文件组',
+      description: Object.keys(groups).length > 0 ? '把文件组导出为 JSON 备份' : '暂无可导出的文件组',
+      keywords: ['export', 'json', 'backup'],
+      disabled: Object.keys(groups).length === 0,
+      onRun: () => void handleExportGroups()
+    },
+    {
+      id: 'open-data-dir',
+      title: '打开数据目录',
+      description: '在资源管理器中打开应用数据目录',
+      keywords: ['folder', 'data', 'appdata'],
+      onRun: () => void handleOpenDataDir()
+    },
+    {
+      id: 'toggle-theme',
+      title: themeMode === 'dark' ? '切换到白天模式' : '切换到黑夜模式',
+      description: '播放圆形扩散动效并切换主题',
+      keywords: ['theme', 'dark', 'light'],
+      disabled: themeAnimating,
+      onRun: toggleThemeMode
+    },
+    {
+      id: 'show-shortcuts',
+      title: '查看快捷键',
+      description: '打开快捷键说明',
+      keywords: ['help', 'keyboard'],
+      shortcut: 'Ctrl K',
+      onRun: () => setShortcutsModalOpen(true)
+    },
+    ...(failedFiles.length > 0
+      ? [{
+          id: 'show-failures',
+          title: '查看失败文件',
+          description: `查看 ${failedFiles.length} 个打开失败的文件`,
+          keywords: ['failure', 'error'],
+          tone: 'danger' as const,
+          onRun: () => setFailuresModalOpen(true)
+        }]
+      : [])
+  ];
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -608,10 +954,16 @@ function App() {
       const control = event.ctrlKey || event.metaKey;
 
       if (event.key === 'Escape') {
-        if (shortcutsModalOpen) {
+        if (commandPaletteOpen) {
+          setCommandPaletteOpen(false);
+        } else if (shortcutsModalOpen) {
           setShortcutsModalOpen(false);
         } else if (failuresModalOpen) {
           setFailuresModalOpen(false);
+        } else if (healthModalOpen) {
+          setHealthModalOpen(false);
+        } else if (recentModalOpen) {
+          setRecentModalOpen(false);
         } else if (editModal.open) {
           setEditModal(EMPTY_EDIT_MODAL);
         } else if (saveModalOpen) {
@@ -619,6 +971,12 @@ function App() {
         } else if (deleteTarget) {
           setDeleteTarget(null);
         }
+        return;
+      }
+
+      if (control && key === 'k') {
+        event.preventDefault();
+        setCommandPaletteOpen((previous) => !previous);
         return;
       }
 
@@ -657,12 +1015,16 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    commandPaletteOpen,
     copyCurrentFilePaths,
     deleteTarget,
     editModal.open,
     failuresModalOpen,
+    healthModalOpen,
+    recentModalOpen,
     handleOpenSelectedFiles,
     handleSelectFiles,
+    openHealthCenter,
     notify,
     saveModalOpen,
     shortcutsModalOpen,
@@ -679,6 +1041,8 @@ function App() {
         ['--danger' as string]: tokens.colors.danger
       }}
     >
+      <WindowTitleBar />
+      <div className="app-content">
       <header className="app-header">
         <div className="title-wrap">
           <div className="title-line">
@@ -706,13 +1070,14 @@ function App() {
           <div className={`status-chip status-${status.tone}`} title={status.message}>
             {status.message}
           </div>
-          <ActionMenu
-            label="帮助"
-            title="帮助与快捷键"
-            items={[
-              { label: '查看快捷键', onClick: () => setShortcutsModalOpen(true) }
-            ]}
-          />
+          <button
+            className="mini-btn command-trigger"
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            title="打开指令中心"
+          >
+            指令中心 <kbd>Ctrl K</kbd>
+          </button>
           {failedFiles.length > 0 && (
             <button className="mini-btn status-action" onClick={() => setFailuresModalOpen(true)}>
               查看失败文件
@@ -720,6 +1085,12 @@ function App() {
           )}
         </div>
       </header>
+
+      <FavoriteGroupsDock
+        entries={favoriteGroupEntries}
+        onOpenGroup={handleOpenGroup}
+        onLoadGroup={handleLoadGroup}
+      />
 
       <main className="app-main">
         <CurrentFilePanel
@@ -729,6 +1100,7 @@ function App() {
           filteredFiles={filteredFiles}
           fileKeyword={fileKeyword}
           dragActive={dragActive}
+          smartSuggestions={smartSuggestions}
           onFileKeywordChange={setFileKeyword}
           onSelectFiles={handleSelectFiles}
           onSaveGroupClick={() => setSaveModalOpen(true)}
@@ -740,6 +1112,8 @@ function App() {
           onToggleFileChecked={handleToggleFileChecked}
           onRemoveSelectedFiles={handleRemoveSelectedFiles}
           onOpenSelectedFiles={handleOpenSelectedFiles}
+          onSelectSmartSuggestion={selectSmartSuggestion}
+          onSaveSmartSuggestion={saveSmartSuggestion}
         />
 
         <GroupPanel
@@ -747,6 +1121,7 @@ function App() {
           groupStats={groupStats}
           filteredGroupEntries={filteredGroupEntries}
           expandedGroups={expandedGroups}
+          favoriteGroups={visibleFavoriteGroups}
           groupKeyword={groupKeyword}
           onGroupKeywordChange={setGroupKeyword}
           onExpandAllVisibleGroups={expandAllVisibleGroups}
@@ -759,10 +1134,37 @@ function App() {
           onOpenGroup={handleOpenGroup}
           onLoadGroup={handleLoadGroup}
           onCopyGroup={handleCopyGroupPaths}
+          onToggleFavoriteGroup={handleToggleFavoriteGroup}
           onEditGroup={openEditModal}
           onDeleteGroup={setDeleteTarget}
         />
       </main>
+      </div>
+
+      {commandPaletteOpen && (
+        <CommandPalette items={commandItems} onClose={() => setCommandPaletteOpen(false)} />
+      )}
+
+      {healthModalOpen && (
+        <HealthCenterModal
+          report={healthReport}
+          loading={healthLoading}
+          onRefresh={() => void refreshHealthReport()}
+          onCopyMissing={copyMissingGroupPaths}
+          onClose={() => setHealthModalOpen(false)}
+        />
+      )}
+
+      {recentModalOpen && (
+        <RecentActivityModal
+          items={recentActivities}
+          onLoad={loadRecentActivity}
+          onOpen={(activity) => void openRecentActivity(activity)}
+          onCopy={(activity) => void copyRecentActivityPaths(activity)}
+          onClear={clearRecentActivities}
+          onClose={() => setRecentModalOpen(false)}
+        />
+      )}
 
       {saveModalOpen && (
         <SaveGroupModal

@@ -1,5 +1,6 @@
 import { ActionMenu } from './ActionMenu';
 import { getFileIcon, getFileName, normalizeIdentity } from '../file-utils';
+import type { SmartGroupSuggestion } from '../smart-group-utils';
 
 import iconOpen from '../assets/icons/fluent/open.png';
 import iconRemove from '../assets/icons/fluent/remove.png';
@@ -13,6 +14,7 @@ type CurrentFilePanelProps = {
   filteredFiles: string[];
   fileKeyword: string;
   dragActive: boolean;
+  smartSuggestions: SmartGroupSuggestion[];
   onFileKeywordChange: (value: string) => void;
   onSelectFiles: () => void;
   onSaveGroupClick: () => void;
@@ -24,6 +26,8 @@ type CurrentFilePanelProps = {
   onToggleFileChecked: (file: string) => void;
   onRemoveSelectedFiles: () => void;
   onOpenSelectedFiles: () => void;
+  onSelectSmartSuggestion: (suggestion: SmartGroupSuggestion) => void;
+  onSaveSmartSuggestion: (suggestion: SmartGroupSuggestion) => void;
 };
 
 export function CurrentFilePanel({
@@ -33,6 +37,7 @@ export function CurrentFilePanel({
   filteredFiles,
   fileKeyword,
   dragActive,
+  smartSuggestions,
   onFileKeywordChange,
   onSelectFiles,
   onSaveGroupClick,
@@ -43,7 +48,9 @@ export function CurrentFilePanel({
   onClearFileList,
   onToggleFileChecked,
   onRemoveSelectedFiles,
-  onOpenSelectedFiles
+  onOpenSelectedFiles,
+  onSelectSmartSuggestion,
+  onSaveSmartSuggestion
 }: CurrentFilePanelProps) {
   return (
     <section className="panel panel-left">
@@ -63,6 +70,33 @@ export function CurrentFilePanel({
         </button>
       </div>
 
+      {smartSuggestions.length > 0 && (
+        <div className="smart-suggestions" aria-label="智能分组建议">
+          <div className="smart-suggestions-title">
+            <span>智能建议</span>
+            <small>根据当前文件类型自动生成</small>
+          </div>
+          <div className="smart-suggestion-list">
+            {smartSuggestions.map((suggestion) => (
+              <article className={`smart-suggestion accent-${suggestion.accent}`} key={suggestion.id}>
+                <div>
+                  <strong>{suggestion.title}</strong>
+                  <span>{suggestion.count} 个文件 · {suggestion.description}</span>
+                </div>
+                <div className="smart-suggestion-actions">
+                  <button className="mini-btn" type="button" onClick={() => onSelectSmartSuggestion(suggestion)}>
+                    勾选
+                  </button>
+                  <button className="mini-btn" type="button" onClick={() => onSaveSmartSuggestion(suggestion)}>
+                    保存为组
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="sub-toolbar">
         <input
           className="search-input"
@@ -71,11 +105,25 @@ export function CurrentFilePanel({
           onChange={(event) => onFileKeywordChange(event.target.value)}
         />
         <div className="inline-actions">
+          <button
+            className="mini-btn"
+            type="button"
+            onClick={onSelectAllFilteredFiles}
+            disabled={filteredFiles.length === 0}
+          >
+            全选筛选
+          </button>
+          <button
+            className="mini-btn"
+            type="button"
+            onClick={onClearSelection}
+            disabled={checkedCount === 0}
+          >
+            清空勾选
+          </button>
           <ActionMenu
             items={[
-              { label: '全选筛选', onClick: onSelectAllFilteredFiles, disabled: filteredFiles.length === 0 },
               { label: '反选筛选', onClick: onInvertFilteredSelection, disabled: filteredFiles.length === 0 },
-              { label: '清空勾选', onClick: onClearSelection, disabled: checkedCount === 0 },
               { label: '复制路径', onClick: onCopySelectedPaths, disabled: selectedFiles.length === 0 },
               { label: '清空列表', onClick: onClearFileList, disabled: selectedFiles.length === 0 }
             ]}
