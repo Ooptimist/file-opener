@@ -1,5 +1,6 @@
 import { type MouseEvent } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import appIcon from '../assets/app-icon.png';
 
 export function WindowTitleBar() {
   const appWindow = getCurrentWindow();
@@ -15,7 +16,7 @@ export function WindowTitleBar() {
   return (
     <div className="window-titlebar" onMouseDown={startDrag}>
       <div className="window-titlebar-title">
-        <span className="window-titlebar-icon" aria-hidden="true" />
+        <img className="window-titlebar-icon" src={appIcon} alt="" aria-hidden="true" />
         <span>文件批量打开工具</span>
       </div>
       <div className="window-titlebar-controls" onMouseDown={(event) => event.stopPropagation()}>
