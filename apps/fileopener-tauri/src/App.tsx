@@ -14,6 +14,7 @@ import { RecentActivityModal } from './components/RecentActivityModal';
 import { SaveGroupModal } from './components/SaveGroupModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { WindowTitleBar } from './components/WindowTitleBar';
+import { modalBackdropStyle, modalSurfaceStyle } from './components/modalStyles';
 import { tokens } from './design-tokens';
 import {
   getFavoriteGroupEntries,
@@ -1176,8 +1177,8 @@ function App() {
       )}
 
       {deleteTarget && (
-        <div className="modal-backdrop">
-          <div className="modal">
+        <div className="modal-backdrop" style={modalBackdropStyle}>
+          <div className="modal" style={modalSurfaceStyle}>
             <h3>确认删除</h3>
             <p>确定要删除文件组“{deleteTarget}”吗？</p>
             <div className="modal-actions">

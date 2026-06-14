@@ -1,3 +1,5 @@
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
+
 type ShortcutsModalProps = {
   onClose: () => void;
 };
@@ -13,8 +15,8 @@ const SHORTCUTS = [
 
 export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal" style={modalSurfaceStyle}>
         <h3>快捷键</h3>
         <div className="shortcut-list">
           {SHORTCUTS.map(([keys, label]) => (

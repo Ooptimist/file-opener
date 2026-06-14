@@ -1,5 +1,6 @@
 import { getFileIcon, getFileName, normalizeIdentity } from '../file-utils';
 import type { EditModalState } from '../types';
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
 
 import iconRemove from '../assets/icons/fluent/remove.png';
 import iconSelectFiles from '../assets/icons/fluent/select-files.png';
@@ -24,8 +25,8 @@ export function EditGroupModal({
   onSave
 }: EditGroupModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal modal-large">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal modal-large" style={modalSurfaceStyle}>
         <h3>编辑文件组</h3>
         <input
           autoFocus

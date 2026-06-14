@@ -1,4 +1,5 @@
 import type { GroupHealthReport } from '../types';
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
 
 type HealthCenterModalProps = {
   report: GroupHealthReport | null;
@@ -27,8 +28,8 @@ export function HealthCenterModal({
   const missingCount = report?.missingCount ?? 0;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal modal-large health-modal">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal modal-large health-modal" style={modalSurfaceStyle}>
         <div className="health-hero">
           <div>
             <span className="command-kicker">Health Center</span>

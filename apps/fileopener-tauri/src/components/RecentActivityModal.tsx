@@ -1,4 +1,5 @@
 import type { RecentActivityItem } from '../recent-activity-utils';
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
 
 type RecentActivityModalProps = {
   items: RecentActivityItem[];
@@ -31,8 +32,8 @@ export function RecentActivityModal({
   onClose
 }: RecentActivityModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal modal-large recent-modal">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal modal-large recent-modal" style={modalSurfaceStyle}>
         <div className="recent-hero">
           <div>
             <span className="command-kicker">Timeline</span>

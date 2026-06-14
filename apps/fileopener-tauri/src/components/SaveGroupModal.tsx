@@ -1,3 +1,5 @@
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
+
 type SaveGroupModalProps = {
   groupName: string;
   onGroupNameChange: (value: string) => void;
@@ -12,8 +14,8 @@ export function SaveGroupModal({
   onSave
 }: SaveGroupModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal" style={modalSurfaceStyle}>
         <h3>保存文件组</h3>
         <input
           autoFocus

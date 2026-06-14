@@ -1,4 +1,5 @@
 import { getFileIcon, getFileName } from '../file-utils';
+import { modalBackdropStyle, modalSurfaceStyle } from './modalStyles';
 
 type OpenFailuresModalProps = {
   failedFiles: string[];
@@ -8,8 +9,8 @@ type OpenFailuresModalProps = {
 
 export function OpenFailuresModal({ failedFiles, onCopy, onClose }: OpenFailuresModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal modal-large">
+    <div className="modal-backdrop" style={modalBackdropStyle}>
+      <div className="modal modal-large" style={modalSurfaceStyle}>
         <h3>打开失败的文件</h3>
         <p>以下文件不存在、权限不足，或被系统阻止打开。</p>
 
